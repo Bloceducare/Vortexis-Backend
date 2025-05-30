@@ -1,5 +1,6 @@
 from django.db import models
 from project.models import Project
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 # Create your models here.
 class Hackathon(models.Model):
@@ -11,9 +12,10 @@ class Hackathon(models.Model):
     themes = models.ManyToManyField('Theme', related_name='hackathons', blank=True)
     grand_prize = models.IntegerField('grand prize', null=False, default=0)
     start_date = models.DateField(null=False, blank=False)
+    visibility = models.BooleanField(default=False, null=False)
     end_date = models.DateField(null=False, blank=False)
-    min_team_size = models.IntegerField('minimum team size', null=False, default=1)
-    max_team_size = models.IntegerField('maximum team size', null=False, default=5)
+    min_team_size = models.IntegerField('minimum team size', null=False, default=1, validators=[MinValueValidator(1), MaxValueValidator(100)])
+    max_team_size = models.IntegerField('maximum team size', null=False, default=5, validators=[MinValueValidator(1), MaxValueValidator(100)])
     organization = models.ForeignKey('organization.Organization', related_name='hackathons', null=True, on_delete=models.SET_NULL)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
