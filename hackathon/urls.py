@@ -1,29 +1,26 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    CreateHackathonView, GetHackathonsView, GetHackathonView,
-    UpdateHackathonView, DeleteHackathonView, RegisterForHackathonView,
-    ProjectViewSet, ReviewViewSet, SubmissionViewSet, PrizeViewSet, 
-    ThemeViewSet, RuleViewSet
+    HackathonCreateView, HackathonListView, HackathonRetrieveView,
+    RegisterForHackathonView, InviteJudgeView, ProjectViewSet,
+    SubmissionViewSet, ReviewViewSet, PrizeViewSet, ThemeViewSet, RuleViewSet,
+    SubmitProjectView
 )
 
 router = DefaultRouter()
 router.register(r'projects', ProjectViewSet, basename='project')
-router.register(r'reviews', ReviewViewSet, basename='review')
 router.register(r'submissions', SubmissionViewSet, basename='submission')
+router.register(r'reviews', ReviewViewSet, basename='review')
 router.register(r'prizes', PrizeViewSet, basename='prize')
 router.register(r'themes', ThemeViewSet, basename='theme')
 router.register(r'rules', RuleViewSet, basename='rule')
 
 urlpatterns = [
-    # Hackathon endpoints
-    path('', GetHackathonsView.as_view(), name='get-hackathons'),
-    path('create/', CreateHackathonView.as_view(), name='create-hackathon'),
-    path('<int:hackathon_id>/', GetHackathonView.as_view(), name='get-hackathon'),
-    path('<int:hackathon_id>/update/', UpdateHackathonView.as_view(), name='update-hackathon'),
-    path('<int:hackathon_id>/delete/', DeleteHackathonView.as_view(), name='delete-hackathon'),
-    path('<int:hackathon_id>/register/', RegisterForHackathonView.as_view(), name='register-hackathon'),
-    
-    # Nested endpoints for prizes, themes, and rules
+    path('', HackathonListView.as_view(), name='hackathon_list'),
+    path('create/', HackathonCreateView.as_view(), name='hackathon_create'),
+    path('<int:hackathon_id>/', HackathonRetrieveView.as_view(), name='hackathon_retrieve'),
+    path('<int:hackathon_id>/register/', RegisterForHackathonView.as_view(), name='hackathon_register'),
+    path('<int:hackathon_id>/invite-judge/', InviteJudgeView.as_view(), name='hackathon_invite_judge'),
+    path('projects/<int:project_id>/submit/', SubmitProjectView.as_view(), name='project_submit'),
     path('<int:hackathon_id>/', include(router.urls)),
 ]
