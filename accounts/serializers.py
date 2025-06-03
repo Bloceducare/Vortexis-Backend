@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework.exceptions import AuthenticationFailed
-from .models import Skill, User
+from .models import Skill, User, Profile
 from .utils import verify_otp
 
 User = get_user_model()
@@ -12,7 +12,7 @@ class UserSerializer:
 
         class Meta:
             model = User
-            fields = ['first_name', 'last_name', 'username', 'email', 'password', 'password2', 'skills']
+            fields = ['first_name', 'last_name', 'username', 'email', 'password', 'password2']
 
         def validate(self, data):
             if data['password'] != data['password2']:
@@ -32,7 +32,6 @@ class UserSerializer:
                 is_moderator=False,
                 is_admin=False
             )
-            user.skills.set(validated_data.get('skills', []))
             return user
 
     class LoginSerializer(serializers.Serializer):
@@ -62,6 +61,7 @@ class UserSerializer:
             else:
                 user_tokens = user.tokens()
                 return {
+                    'id': user.id,
                     'username': user.username,
                     'email': user.email,
                     'full_name': user.get_full_name,
@@ -95,7 +95,7 @@ class UserSerializer:
         email = serializers.EmailField()
         first_name = serializers.CharField()
         last_name = serializers.CharField()
-        skills = serializers.PrimaryKeyRelatedField(many=True, queryset=Skill.objects.all())
+        profile = serializers.SerializerMethodField()
         is_participant = serializers.BooleanField()
         is_organizer = serializers.BooleanField()
         is_judge = serializers.BooleanField()
@@ -110,3 +110,56 @@ class UserSerializer:
         class Meta:
             model = User
             fields = "__all__"
+
+        def get_profile(self, obj):
+            profile = Profile.objects.filter(user=obj).first()
+            if profile:
+                return {
+                    'bio': profile.bio,
+                    'github': profile.github,
+                    'linkedin': profile.linkedin,
+                    'twitter': profile.twitter,
+                    'website': profile.website,
+                    'location': profile.location,
+                    'profile_picture': profile.profile_picture.url if profile.profile_picture else None,
+                    'skills': [skill.name for skill in profile.skills.all()]
+                }
+            return None
+class SkillSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Skill
+        fields = ['id', 'name']
+
+    def validate_name(self, value):
+        if not value.isalpha():
+            raise serializers.ValidationError("Skill name must contain only alphabetic characters.")
+        return value
+    
+class ProfileSerializer(serializers.ModelSerializer):
+    skills = SkillSerializer(many=True, required=False)
+
+    class Meta:
+        model = Profile
+        fields = ['bio', 'github', 'linkedin', 'twitter', 'website', 'location', 'profile_picture', 'skills']
+
+    def create(self, validated_data):
+        skills_data = validated_data.pop('skills', [])
+        profile = Profile.objects.create(**validated_data)
+        for skill_data in skills_data:
+            skill, created = Skill.objects.get_or_create(name=skill_data['name'])
+            profile.skills.add(skill)
+        return profile
+
+    def update(self, instance, validated_data):
+        skills_data = validated_data.pop('skills', [])
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        if skills_data:
+            instance.skills.clear()
+            for skill_data in skills_data:
+                skill, created = Skill.objects.get_or_create(name=skill_data['name'])
+                instance.skills.add(skill)
+        
+        return instance
