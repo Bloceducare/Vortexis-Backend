@@ -87,3 +87,24 @@ class UserView(GenericAPIView):
             return Response({'error': 'User does not exist.'}, status=status.HTTP_404_NOT_FOUND)
         return Response({'user': UserSerializer.Retrieve(user).data}, status=status.HTTP_200_OK)
     
+class UserUpdateView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        request_body=UserSerializer.UpdateSerializer,
+        responses={200: 'User updated successfully', 400: 'Bad Request'},
+        operation_description="Update a user.",
+        tags=['account']
+    )
+    def put(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User does not exist.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = UserSerializer.UpdateSerializer(user, data=request.data, partial=True)
+        if serializer.is_valid(raise_exception=True):
+            user = serializer.save()
+            return Response({'user': UserSerializer.Retrieve(user).data}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
