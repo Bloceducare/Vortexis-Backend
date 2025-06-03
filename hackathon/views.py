@@ -3,279 +3,414 @@ from rest_framework.response import Response
 from rest_framework.generics import GenericAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
-from accounts.permissions import IsOrganizer, IsAdmin, IsJudge
-from .serializers import (
-    HackathonSerailizer, ProjectSerializer, ReviewSerializer,
-    PrizeSerializer, ThemeSerializer, RuleSerializer, SubmissionSerializer,
-    CreateSubmissionSerializer, UpdateSubmissionSerializer
-)
-from .models import Hackathon, Project, Review, Prize, Theme, Rule, Submission
-from drf_yasg.utils import swagger_auto_schema
+from accounts.permissions import IsOrganizer, IsJudge
+from django.core.mail import send_mail
+from django.conf import settings
 from django.utils import timezone
-from rest_framework import serializers
+from drf_yasg.utils import swagger_auto_schema
 
-# Create your views here.
-class CreateHackathonView(GenericAPIView):
-    serializer_class = HackathonSerailizer.CreateHackathonSerializer
+from project.models import Project
+from team.models import Team
+from .models import Hackathon, Theme, Rule, Submission, Review, Prize
+from .serializers import (
+    CreateProjectSerializer, HackathonSerializer, CreateHackathonSerializer, ProjectSerializer, SubmitProjectSerializer, UpdateHackathonSerializer,
+    RegisterHackathonSerializer, ThemeSerializer, RuleSerializer,
+    SubmissionSerializer, CreateSubmissionSerializer, UpdateProjectSerializer, UpdateSubmissionSerializer,
+    ReviewSerializer, PrizeSerializer, InviteJudgeSerializer
+)
+
+
+class HackathonCreateView(GenericAPIView):
     permission_classes = [IsAuthenticated, IsOrganizer]
+    serializer_class = CreateHackathonSerializer
+
     @swagger_auto_schema(
         request_body=serializer_class,
-        responses={201: 'Hackathon created successfully', 400: 'Bad Request'},
-        operation_description="Create a new hackathon.",
-        tags=['hackathon']
+        responses={
+            201: HackathonSerializer,
+            400: "Bad Request",
+            401: "Unauthorized"
+        },
+        operation_description="Create a new hackathon (organizers with approved organizations only).",
+        tags=['hackathons']
     )
     def post(self, request):
-        serializer = self.serializer_class(data = request.data, context = {'request': request})
-        if serializer.is_valid(raise_exception=True):
-            hackathon = serializer.save()
-            return Response({'hackathon': HackathonSerailizer.HackathonSerializer(hackathon).data}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-class GetHackathonsView(GenericAPIView):
-    permission_classes = [IsAuthenticated]
-    
-    @swagger_auto_schema(
-        responses={200: 'Hackathons retrieved successfully', 400: 'Bad Request'},
-        operation_description="Get all hackathons.",
-        tags=['hackathon']
-    )
-    def get(self, request):
-        queryset = Hackathon.objects.all()
-        serializer = HackathonSerailizer.HackathonSerializer(queryset, many=True)
-        return Response({'hackathons': serializer.data}, status=status.HTTP_200_OK)
-    
-class GetHackathonView(GenericAPIView):
-    permission_classes = [IsAuthenticated]
-    @swagger_auto_schema(
-        responses={200: 'Hackathon retrieved successfully', 400: 'Bad Request'},
-        operation_description="Get a hackathon by id.",
-        tags=['hackathon']
-    )
-    def get(self, request, hackathon_id):
-        try:
-            hackathon = Hackathon.objects.get(id=hackathon_id)
-        except Hackathon.DoesNotExist:
-            return Response({'error': 'Hackathon does not exist.'}, status=status.HTTP_404_NOT_FOUND)
-        return Response({'hackathon': HackathonSerailizer.HackathonSerializer(hackathon).data}, status=status.HTTP_200_OK)
-    
-class UpdateHackathonView(GenericAPIView):
-    serializer_class = HackathonSerailizer.UpdateHackathonSerializer
-    permission_classes = [IsAuthenticated, IsOrganizer]
-    @swagger_auto_schema(
-        request_body=serializer_class,
-        responses={200: 'Hackathon updated successfully', 400: 'Bad Request'},
-        operation_description="Update a hackathon.",
-        tags=['hackathon']
-    )
-    def put(self, request, hackathon_id):
-        try:
-            hackathon = Hackathon.objects.get(id=hackathon_id)
-        except Hackathon.DoesNotExist:
-            return Response({'error': 'Hackathon does not exist.'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = self.serializer_class(hackathon, data=request.data, context={'request': request})
-        if serializer.is_valid(raise_exception=True):
-            serializer.save()
-            return Response({'hackathon': HackathonSerailizer.HackathonSerializer(hackathon).data}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        hackathon = serializer.save()
+        # Send email notification to organizer
+        send_mail(
+            subject="Hackathon Created Successfully",
+            message=f"Dear {request.user.get_full_name},\n\nYour hackathon '{hackathon.title}' has been created successfully.\nDetails: {hackathon.description}\nVenue: {hackathon.venue}\nStart Date: {hackathon.start_date}\nEnd Date: {hackathon.end_date}",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[request.user.email],
+            fail_silently=True
+        )
+        return Response(
+            {"message": "Hackathon created successfully.", "hackathon": HackathonSerializer(hackathon).data},
+            status=status.HTTP_201_CREATED
+        )
 
-class DeleteHackathonView(GenericAPIView):
-    permission_classes = [IsAuthenticated, IsOrganizer]
+
+class HackathonListView(ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = HackathonSerializer
+
+    def get_queryset(self):
+        return Hackathon.objects.filter(visibility=True)  # Only show public hackathons
+
     @swagger_auto_schema(
-        responses={204: 'Hackathon deleted successfully', 400: 'Bad Request'},
-        operation_description="Delete a hackathon by id.",
-        tags=['hackathon']
+        responses={
+            200: HackathonSerializer(many=True),
+            401: "Unauthorized"
+        },
+        operation_description="List all public hackathons.",
+        tags=['hackathons']
     )
-    def delete(self, request, hackathon_id):
-        try:
-            hackathon = Hackathon.objects.get(id=hackathon_id)
-        except Hackathon.DoesNotExist:
-            return Response({'error': 'Hackathon does not exist.'}, status=status.HTTP_404_NOT_FOUND)
-        user = request.user
-        if hackathon.organization != user.organization:
-            return Response({'error': 'You are not authorized to delete this hackathon.'}, status=status.HTTP_401_UNAUTHORIZED)
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+
+class HackathonRetrieveView(RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = HackathonSerializer
+    lookup_field = 'id'
+    lookup_url_kwarg = 'hackathon_id'
+
+    def get_queryset(self):
+        return Hackathon.objects.all()
+
+    @swagger_auto_schema(
+        responses={
+            200: HackathonSerializer,
+            404: "Hackathon not found",
+            401: "Unauthorized"
+        },
+        operation_description="Retrieve a hackathon's details.",
+        tags=['hackathons']
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        request_body=UpdateHackathonSerializer,
+        responses={
+            200: HackathonSerializer,
+            400: "Bad Request",
+            403: "Forbidden",
+            404: "Hackathon not found"
+        },
+        operation_description="Update a hackathon (organizers or moderators only).",
+        tags=['hackathons']
+    )
+    def put(self, request, *args, **kwargs):
+        return super().put(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        responses={
+            204: "Hackathon deleted successfully",
+            403: "Forbidden",
+            404: "Hackathon not found"
+        },
+        operation_description="Delete a hackathon (organizers or moderators only).",
+        tags=['hackathons']
+    )
+    def delete(self, request, *args, **kwargs):
+        hackathon = self.get_object()
+        if hackathon.organization.organizer != request.user and request.user not in hackathon.organization.moderators.all():
+            return Response({"error": "You are not authorized to delete this hackathon."}, status=status.HTTP_403_FORBIDDEN)
         hackathon.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        # Send email notification to organizer
+        send_mail(
+            subject="Hackathon Deleted",
+            message=f"Dear {request.user.get_full_name},\n\nYour hackathon '{hackathon.title}' has been deleted.",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[request.user.email],
+            fail_silently=True
+        )
+        return Response({"message": "Hackathon deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+
 
 class RegisterForHackathonView(GenericAPIView):
-    serializer_class = HackathonSerailizer.RegisterHackathonSerializer
     permission_classes = [IsAuthenticated]
+    serializer_class = RegisterHackathonSerializer
+
     @swagger_auto_schema(
-        responses={201: 'Registered successfully', 400: 'Bad Request'},
-        operation_description="Register for a hackathon by id.",
-        tags=['hackathon']
+        request_body=serializer_class,
+        responses={
+            200: HackathonSerializer,
+            400: "Bad Request",
+            401: "Unauthorized",
+            404: "Hackathon not found"
+        },
+        operation_description="Register a team for a hackathon.",
+        tags=['hackathons']
     )
     def post(self, request, hackathon_id):
         try:
             hackathon = Hackathon.objects.get(id=hackathon_id)
         except Hackathon.DoesNotExist:
-            return Response({'error': 'Hackathon does not exist.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Hackathon does not exist."}, status=status.HTTP_404_NOT_FOUND)
         serializer = self.serializer_class(hackathon, data=request.data, context={'request': request})
-        if serializer.is_valid(raise_exception=True):
-            serializer.save()
-            return Response({'hackathon': HackathonSerailizer.HackathonSerializer(hackathon).data, 'message': 'Registered successfully'}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+        hackathon = serializer.save()
+        # Send email notification to team members
+        team = Team.objects.get(id=serializer.validated_data['team_id'])
+        send_mail(
+            subject="Hackathon Registration Successful",
+            message=f"Dear {request.user.get_full_name},\n\nYour team '{team.name}' has been successfully registered for '{hackathon.title}'.\nStart Date: {hackathon.start_date}\nEnd Date: {hackathon.end_date}",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[member.email for member in team.members.all()],
+            fail_silently=True
+        )
+        return Response(
+            {"message": "Team registered successfully.", "hackathon": HackathonSerializer(hackathon).data},
+            status=status.HTTP_200_OK
+        )
 
-class SubmitProjectView(GenericAPIView):
-    serializer_class = ProjectSerializer.SubmitProjectSerializer
-    permission_classes = [IsAuthenticated]
-    
+
+class InviteJudgeView(GenericAPIView):
+    permission_classes = [IsAuthenticated, IsOrganizer]
+    serializer_class = InviteJudgeSerializer
+
     @swagger_auto_schema(
         request_body=serializer_class,
-        responses={201: 'Project submitted successfully', 400: 'Bad Request'},
-        operation_description="Submit a project to a hackathon.",
-        tags=['project']
+        responses={
+            200: "Judge invited successfully",
+            400: "Bad Request",
+            403: "Forbidden",
+            404: "Hackathon not found"
+        },
+        operation_description="Invite a judge to a hackathon (organizers only).",
+        tags=['hackathons']
     )
-    def post(self, request, project_id):
+    def post(self, request, hackathon_id):
         try:
-            project = Project.objects.get(id=project_id)
-        except Project.DoesNotExist:
-            return Response({'error': 'Project does not exist.'}, status=status.HTTP_404_NOT_FOUND)
-        
-        serializer = self.serializer_class(project, data=request.data, context={'request': request})
-        if serializer.is_valid(raise_exception=True):
-            submission = serializer.save()
-            return Response({
-                'submission': SubmissionSerializer(submission).data,
-                'message': 'Project submitted successfully'
-            }, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon does not exist."}, status=status.HTTP_404_NOT_FOUND)
+        if hackathon.organization.organizer != request.user and request.user not in hackathon.organization.moderators.all():
+            return Response({"error": "You are not authorized to invite judges for this hackathon."}, status=status.HTTP_403_FORBIDDEN)
+        serializer = self.serializer_class(data=request.data, context={'request': request, 'hackathon': hackathon})
+        serializer.is_valid(raise_exception=True)
+        judge = serializer.validated_data['email']
+        hackathon.judges.add(judge)
+        # Send email notification to judge
+        send_mail(
+            subject=f"Invitation to Judge {hackathon.title}",
+            message=f"Dear {judge.get_full_name},\n\nYou have been invited to judge '{hackathon.title}'.\nDetails: {hackathon.description}\nVenue: {hackathon.venue}\nStart Date: {hackathon.start_date}\nEnd Date: {hackathon.end_date}\nPlease confirm your participation.",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[judge.email],
+            fail_silently=True
+        )
+        return Response({"message": f"Judge {judge.username} invited successfully."}, status=status.HTTP_200_OK)
 
-class ReviewSubmissionView(GenericAPIView):
-    serializer_class = ReviewSerializer
-    permission_classes = [IsAuthenticated, IsJudge]
-    
-    @swagger_auto_schema(
-        request_body=serializer_class,
-        responses={201: 'Review submitted successfully', 400: 'Bad Request'},
-        operation_description="Submit a review for a project submission.",
-        tags=['review']
-    )
-    def post(self, request, submission_id):
-        try:
-            submission = Submission.objects.get(id=submission_id)
-        except Submission.DoesNotExist:
-            return Response({'error': 'Submission does not exist.'}, status=status.HTTP_404_NOT_FOUND)
-        
-        if submission.hackathon not in request.user.judged_hackathons.all():
-            return Response({'error': 'You are not authorized to review this submission.'}, 
-                          status=status.HTTP_401_UNAUTHORIZED)
-        
-        serializer = self.serializer_class(data=request.data, context={'request': request})
-        if serializer.is_valid(raise_exception=True):
-            review = serializer.save(submission=submission, judge=request.user)
-            return Response({
-                'review': ReviewSerializer(review).data,
-                'message': 'Review submitted successfully'
-            }, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-class PrizeViewSet(ModelViewSet):
-    serializer_class = PrizeSerializer
-    permission_classes = [IsAuthenticated, IsOrganizer]
-    
-    def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return Prize.objects.none()
-        hackathon_id = self.kwargs.get('hackathon_id')
-        return Prize.objects.filter(hackathon_id=hackathon_id)
-    
-    def perform_create(self, serializer):
-        hackathon_id = self.kwargs.get('hackathon_id')
-        hackathon = Hackathon.objects.get(id=hackathon_id)
-        serializer.save(hackathon=hackathon)
-
-class ThemeViewSet(ModelViewSet):
-    serializer_class = ThemeSerializer
-    permission_classes = [IsAuthenticated, IsOrganizer]
-    
-    def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return Theme.objects.none()
-        hackathon_id = self.kwargs.get('hackathon_id')
-        return Theme.objects.filter(hackathons__id=hackathon_id)
-
-class RuleViewSet(ModelViewSet):
-    serializer_class = RuleSerializer
-    permission_classes = [IsAuthenticated, IsOrganizer]
-    
-    def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return Rule.objects.none()
-        hackathon_id = self.kwargs.get('hackathon_id')
-        return Rule.objects.filter(hackathon_id=hackathon_id)
-    
-    def perform_create(self, serializer):
-        hackathon_id = self.kwargs.get('hackathon_id')
-        hackathon = Hackathon.objects.get(id=hackathon_id)
-        serializer.save(hackathon=hackathon)
 
 class ProjectViewSet(ModelViewSet):
-    serializer_class = ProjectSerializer.ProjectSerializer
     permission_classes = [IsAuthenticated]
-    
+    serializer_class = ProjectSerializer
+
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return Project.objects.none()
         return Project.objects.filter(team__members=self.request.user)
 
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return CreateProjectSerializer
+        elif self.action in ['update', 'partial_update']:
+            return UpdateProjectSerializer
+        return ProjectSerializer
+
     def perform_create(self, serializer):
-        serializer.save(team=self.request.user.teams.first())
+        serializer.save()
+
+    @swagger_auto_schema(
+        responses={
+            200: ProjectSerializer(many=True),
+            401: "Unauthorized"
+        },
+        operation_description="List all projects for the authenticated user.",
+        tags=['projects']
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        request_body=CreateProjectSerializer,
+        responses={
+            201: ProjectSerializer,
+            400: "Bad Request",
+            401: "Unauthorized"
+        },
+        operation_description="Create a new project.",
+        tags=['projects']
+    )
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
+
+class SubmitProjectView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = SubmitProjectSerializer
+
+    @swagger_auto_schema(
+        request_body=serializer_class,
+        responses={
+            201: SubmissionSerializer,
+            400: "Bad Request",
+            401: "Unauthorized",
+            404: "Project or Hackathon not found"
+        },
+        operation_description="Submit a project to a hackathon.",
+        tags=['projects']
+    )
+    def post(self, request, project_id):
+        try:
+            project = Project.objects.get(id=project_id)
+        except Project.DoesNotExist:
+            return Response({"error": "Project does not exist."}, status=status.HTTP_404_NOT_FOUND)
+        if project.team not in request.user.teams.all():
+            return Response({"error": "You are not a member of this project's team."}, status=status.HTTP_403_FORBIDDEN)
+        serializer = self.serializer_class(project, data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        submission = serializer.save()
+        # Send email notification to team members
+        send_mail(
+            subject="Project Submission Successful",
+            message=f"Dear {request.user.get_full_name},\n\nYour project '{project.title}' has been submitted to '{submission.hackathon.title}'.\nSubmission ID: {submission.id}",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[member.email for member in project.team.members.all()],
+            fail_silently=True
+        )
+        return Response(
+            {"message": "Project submitted successfully.", "submission": SubmissionSerializer(submission).data},
+            status=status.HTTP_201_CREATED
+        )
+
 
 class SubmissionViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
-    
+
     def get_serializer_class(self):
         if self.action == 'create':
             return CreateSubmissionSerializer
         elif self.action in ['update', 'partial_update']:
             return UpdateSubmissionSerializer
         return SubmissionSerializer
-    
+
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return Submission.objects.none()
-        
         hackathon_id = self.kwargs.get('hackathon_id')
         if not hackathon_id:
-            return Submission.objects.none()
-            
+            return Submission.objects.filter(team__members=self.request.user)
         if self.request.user.is_organizer or self.request.user.is_judge:
-            return Submission.objects.filter(
-                hackathon_id=hackathon_id,
-                hackathon__in=self.request.user.judged_hackathons.all()
-            )
-        return Submission.objects.filter(
-            hackathon_id=hackathon_id,
-            team__members=self.request.user
+            return Submission.objects.filter(hackathon_id=hackathon_id)
+        return Submission.objects.filter(hackathon_id=hackathon_id, team__members=self.request.user)
+
+    def perform_create(self, serializer):
+        hackathon = Hackathon.objects.get(id=self.kwargs['hackathon_id'])
+        serializer.save(hackathon=hackathon)
+        # Send email notification for submission
+        submission = serializer.instance
+        send_mail(
+            subject="New Submission Received",
+            message=f"Dear {hackathon.organization.organizer.get_full_name},\n\nA new submission for '{hackathon.title}' has been received.\nProject: {submission.project.title}\nTeam: {submission.team.name}",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[hackathon.organization.organizer.email],
+            fail_silently=True
         )
 
+    def perform_update(self, serializer):
+        submission = serializer.save()
+        if submission.approved:
+            # Send email notification for approval
+            send_mail(
+                subject="Submission Approved",
+                message=f"Dear {submission.team.members.first().get_full_name},\n\nYour submission '{submission.project.title}' for '{submission.hackathon.title}' has been approved.",
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[member.email for member in submission.team.members.all()],
+                fail_silently=True
+            )
+
+
 class ReviewViewSet(ModelViewSet):
-    serializer_class = ReviewSerializer
     permission_classes = [IsAuthenticated, IsJudge]
-    
+    serializer_class = ReviewSerializer
+
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return Review.objects.none()
-            
         hackathon_id = self.kwargs.get('hackathon_id')
         if not hackathon_id:
-            return Review.objects.none()
-            
-        return Review.objects.filter(
-            submission__hackathon_id=hackathon_id,
-            judge=self.request.user
-        )
-    
+            return Review.objects.filter(judge=self.request.user)
+        return Review.objects.filter(submission__hackathon_id=hackathon_id, judge=self.request.user)
+
     def perform_create(self, serializer):
-        submission_id = self.request.data.get('submission')
-        submission = Submission.objects.get(id=submission_id)
-        
-        # Check if submission belongs to a hackathon the judge is assigned to
-        if submission.hackathon not in self.request.user.judged_hackathons.all():
-            raise serializers.ValidationError("You are not authorized to review this submission")
-            
-        # Check if judge has already reviewed this submission
-        if Review.objects.filter(submission=submission, judge=self.request.user).exists():
-            raise serializers.ValidationError("You have already reviewed this submission")
-            
         serializer.save(judge=self.request.user)
+        # Send email notification to submission team
+        review = serializer.instance
+        send_mail(
+            subject="New Review for Your Submission",
+            message=f"Dear {review.submission.team.members.first().get_full_name},\n\nYour submission '{review.submission.project.title}' for '{review.submission.hackathon.title}' has received a new review.\nScore: {review.score}\nComments: {review.review or 'No comments provided'}",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[member.email for member in review.submission.team.members.all()],
+            fail_silently=True
+        )
+
+
+class PrizeViewSet(ModelViewSet):
+    permission_classes = [IsAuthenticated, IsOrganizer]
+    serializer_class = PrizeSerializer
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Prize.objects.none()
+        hackathon_id = self.kwargs.get('hackathon_id')
+        return Prize.objects.filter(hackathon_id=hackathon_id)
+
+    def perform_create(self, serializer):
+        hackathon = Hackathon.objects.get(id=self.kwargs['hackathon_id'])
+        serializer.save(hackathon=hackathon)
+        # Send email notification if recipient is assigned
+        prize = serializer.instance
+        if prize.recipient:
+            send_mail(
+                subject=f"Congratulations! You've Won {prize.name}",
+                message=f"Dear {prize.recipient.members.first().get_full_name},\n\nYour team '{prize.recipient.name}' has won the '{prize.name}' prize for '{hackathon.title}'.\nAmount: {prize.amount}",
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[member.email for member in prize.recipient.members.all()],
+                fail_silently=True
+            )
+
+
+class ThemeViewSet(ModelViewSet):
+    permission_classes = [IsAuthenticated, IsOrganizer]
+    serializer_class = ThemeSerializer
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Theme.objects.none()
+        hackathon_id = self.kwargs.get('hackathon_id')
+        return Theme.objects.filter(hackathons__id=hackathon_id)
+
+    def perform_create(self, serializer):
+        hackathon = Hackathon.objects.get(id=self.kwargs['hackathon_id'])
+        theme = serializer.save()
+        hackathon.themes.add(theme)
+
+
+class RuleViewSet(ModelViewSet):
+    permission_classes = [IsAuthenticated, IsOrganizer]
+    serializer_class = RuleSerializer
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Rule.objects.none()
+        hackathon_id = self.kwargs.get('hackathon_id')
+        return Rule.objects.filter(hackathon_id=hackathon_id)
+
+    def perform_create(self, serializer):
+        hackathon = Hackathon.objects.get(id=self.kwargs['hackathon_id'])
+        serializer.save(hackathon=hackathon)

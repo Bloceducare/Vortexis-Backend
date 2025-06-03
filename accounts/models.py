@@ -15,7 +15,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=50, unique=True, null=False, blank=False)
     first_name = models.CharField(max_length=50, null=False, blank=False)
     last_name = models.CharField(max_length=50, null=True, blank=True)
-    skills = models.ManyToManyField(Skill, related_name='participants', blank=True)
     auth_provider = models.CharField(max_length=20, default=AUTH_PROVIDERS.get('email'))
     is_participant = models.BooleanField(default=False)
     is_organizer = models.BooleanField(default=False)
@@ -48,4 +47,18 @@ class User(AbstractBaseUser, PermissionsMixin):
             'access': str(refresh.access_token)
         }
 
+
+class Profile(models.Model):
+    user = models.OneToOneField(User, related_name='profile', on_delete=models.CASCADE)
+    bio = models.TextField(null=True, blank=True)
+    github = models.URLField(max_length=200, null=True, blank=True)
+    linkedin = models.URLField(max_length=200, null=True, blank=True)
+    twitter = models.URLField(max_length=200, null=True, blank=True)
+    website = models.URLField(max_length=200, null=True, blank=True)
+    location = models.CharField(max_length=100, null=True, blank=True)
+    skills = models.ManyToManyField(Skill, related_name='profiles', blank=True)
+    profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.user.username}'s Profile"
 
