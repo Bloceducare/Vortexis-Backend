@@ -67,7 +67,11 @@ class UserLoginView(GenericAPIView):
         serializer = UserSerializer.LoginSerializer(data=request.data, context={'request': request})
         if serializer.is_valid(raise_exception=True):
             data = serializer.validated_data
-            return Response({'data': data}, status=status.HTTP_200_OK)
+            user = User.objects.get(id=data['id'])
+            user_data = UserSerializer.Retrieve(user).data
+            return Response({'access_token': data.access_token,
+                             'refresh_token': data.refresh_token,
+                             "user_data": user_data }, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 class UserView(GenericAPIView):
