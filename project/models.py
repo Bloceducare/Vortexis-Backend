@@ -7,6 +7,7 @@ class Project(models.Model):
     github_url = models.URLField("github url", blank=False)
     demo_video_url = models.URLField("Project video link", blank=True)
     live_link = models.URLField("Project live link", blank=True)
+    presentation_link = models.URLField("Project presentation link", blank=True)
     team = models.ForeignKey(Team, related_name='projects', null=True, on_delete=models.SET_NULL)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
