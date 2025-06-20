@@ -55,7 +55,7 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Project
-        fields = ['id', 'title', 'description', 'github_url', 'live_link', 'team', 'submitted', 'created_at', 'updated_at']
+        fields = ['id', 'title', 'description', 'github_url', 'live_link', 'demo_video_url', 'presentation_link', 'team', 'submitted', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at', 'submitted']
         ref_name = 'HackathonProjectSerializer'
 
@@ -79,18 +79,20 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 class CreateProjectSerializer(ProjectSerializer):
     class Meta(ProjectSerializer.Meta):
-        fields = ['title', 'description', 'github_url', 'live_link', 'team']
+        fields = ['title', 'description', 'github_url', 'live_link', 'demo_video_url', 'presentation_link', 'team']
         ref_name = 'HackathonCreateProjectSerializer'
 
 
 class UpdateProjectSerializer(ProjectSerializer):
     class Meta(ProjectSerializer.Meta):
-        fields = ['title', 'description', 'github_url', 'live_link']
+        fields = ['title', 'description', 'github_url', 'live_link', 'demo_video_url', 'presentation_link']
         extra_kwargs = {
             'title': {'required': False},
             'description': {'required': False},
             'github_url': {'required': False},
             'live_link': {'required': False},
+            'demo_video_url': {'required': False},
+            'presentation_link': {'required': False},
         }
         ref_name = 'HackathonUpdateProjectSerializer'
 
@@ -157,7 +159,12 @@ class SubmissionSerializer(serializers.ModelSerializer):
         return [
             {
                 'id': review.id,
-                'score': review.score,
+                'innovation_score': review.innovation_score,
+                'technical_score': review.technical_score,
+                'user_experience_score': review.user_experience_score,
+                'impact_score': review.impact_score,
+                'presentation_score': review.presentation_score,
+                'overall_score': review.overall_score,
                 'review': review.review,
                 'judge': {
                     'id': review.judge.id,
@@ -211,16 +218,11 @@ class ReviewSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Review
-        fields = ['id', 'submission', 'judge', 'score', 'review', 'created_at', 'updated_at']
+        fields = ['id', 'submission', 'judge', 'innovation_score', 'technical_score', 'user_experience_score', 'impact_score', 'presentation_score', 'overall_score', 'review', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at', 'judge']
 
     def get_judge(self, obj):
         return {'id': obj.judge.id, 'username': obj.judge.username, 'email': obj.judge.email}
-
-    def validate_score(self, value):
-        if not 0 <= value <= 100:
-            raise serializers.ValidationError("Score must be between 0 and 100.")
-        return value
 
     def validate(self, data):
         request = self.context.get('request')
@@ -230,6 +232,11 @@ class ReviewSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("You are not authorized to review this submission.")
         if Review.objects.filter(submission=submission, judge=user).exists():
             raise serializers.ValidationError("You have already reviewed this submission.")
+        # Validate all score fields are between 0 and 10
+        for field in ['innovation_score', 'technical_score', 'user_experience_score', 'impact_score', 'presentation_score', 'overall_score']:
+            value = data.get(field)
+            if value is not None and (value < 0 or value > 10):
+                raise serializers.ValidationError({field: "Score must be between 0 and 10."})
         return data
 
 

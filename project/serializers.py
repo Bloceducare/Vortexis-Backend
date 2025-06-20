@@ -7,7 +7,7 @@ class ProjectSerializer:
     class CreateProjectSerializer(serializers.ModelSerializer):
         class Meta:
             model = Project
-            fields = ['title', 'description', 'github_url', 'live_link', 'team']
+            fields = ['title', 'description', 'github_url', 'live_link', 'demo_video_url', 'presentation_link', 'team']
             ref_name = 'ProjectCreateSerializer'
         
         def validate(self, data):
@@ -49,6 +49,8 @@ class ProjectSerializer:
                 description=validated_data['description'],
                 github_url=validated_data['github_url'],
                 live_link=validated_data.get('live_link', ''),
+                demo_video_url=validated_data.get('demo_video_url', ''),
+                presentation_link=validated_data.get('presentation_link', ''),
                 team=validated_data['team']
             )
             return project
@@ -58,7 +60,7 @@ class ProjectSerializer:
         
         class Meta:
             model = Project
-            fields = ['id', 'title', 'description', 'github_url', 'live_link', 'team', 'created_at', 'updated_at']
+            fields = ['id', 'title', 'description', 'github_url', 'live_link', 'demo_video_url', 'presentation_link', 'team', 'created_at', 'updated_at']
             read_only_fields = ['created_at', 'updated_at']
             ref_name = 'ProjectDetailSerializer'
         
@@ -73,12 +75,14 @@ class ProjectSerializer:
     class UpdateProjectSerializer(serializers.ModelSerializer):
         class Meta:
             model = Project
-            fields = ['title', 'description', 'github_url', 'live_link']
+            fields = ['title', 'description', 'github_url', 'live_link', 'demo_video_url', 'presentation_link']
             extra_kwargs = {
                 'title': {'required': False},
                 'description': {'required': False},
                 'github_url': {'required': False},
                 'live_link': {'required': False},
+                'demo_video_url': {'required': False},
+                'presentation_link': {'required': False},
             }
             ref_name = 'ProjectUpdateSerializer'
         
@@ -102,5 +106,7 @@ class ProjectSerializer:
             instance.description = validated_data.get('description', instance.description)
             instance.github_url = validated_data.get('github_url', instance.github_url)
             instance.live_link = validated_data.get('live_link', instance.live_link)
+            instance.demo_video_url = validated_data.get('demo_video_url', instance.demo_video_url)
+            instance.presentation_link = validated_data.get('presentation_link', instance.presentation_link)
             instance.save()
             return instance 
