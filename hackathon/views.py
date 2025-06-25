@@ -8,6 +8,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.utils import timezone
 from drf_yasg.utils import swagger_auto_schema
+from rest_framework.views import APIView
 
 from project.models import Project
 from team.models import Team
@@ -414,3 +415,21 @@ class RuleViewSet(ModelViewSet):
     def perform_create(self, serializer):
         hackathon = Hackathon.objects.get(id=self.kwargs['hackathon_id'])
         serializer.save(hackathon=hackathon)
+
+
+class JudgeHackathonsView(APIView):
+    permission_classes = [IsAuthenticated, IsJudge]
+
+    @swagger_auto_schema(
+        responses={
+            200: HackathonSerializer(many=True),
+            401: "Unauthorized",
+            403: "Forbidden"
+        },
+        operation_description="Fetch all hackathons a judge is judging.",
+        tags=['hackathons']
+    )
+    def get(self, request):
+        hackathons = Hackathon.objects.filter(judges=request.user)
+        serializer = HackathonSerializer(hackathons, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
