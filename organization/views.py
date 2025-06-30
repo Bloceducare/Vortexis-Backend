@@ -6,7 +6,7 @@ from accounts.permissions import IsOrganizer, IsAdmin
 from .serializers import (
     OrganizationSerializer, CreateOrganizationSerializer,
     UpdateOrganizationSerializer, AddModeratorSerializer,
-    RemoveModeratorSerializer
+    RemoveModeratorSerializer, ApproveOrganizationSerializer
 )
 from .models import Organization
 from drf_yasg.utils import swagger_auto_schema
@@ -106,6 +106,7 @@ class GetUnapprovedOrganizationsView(GenericAPIView):
 
 class ApproveOrganizationView(GenericAPIView):
     permission_classes = [IsAuthenticated, IsAdmin]
+    serializer_class = ApproveOrganizationSerializer
 
     @swagger_auto_schema(
         responses={200: OrganizationSerializer, 404: 'Not Found'},

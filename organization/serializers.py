@@ -2,6 +2,10 @@ from rest_framework import serializers
 from .models import Organization
 from accounts.models import User
 
+class ApproveOrganizationSerializer(serializers.Serializer):
+    """Empty serializer for the approve organization endpoint."""
+    pass
+
 class OrganizationSerializer(serializers.ModelSerializer):
     organizer = serializers.CharField(source='organizer.username', read_only=True)
     moderators = serializers.SlugRelatedField(many=True, slug_field='username', queryset=User.objects.all(), required=False)
