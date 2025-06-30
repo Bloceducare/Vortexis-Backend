@@ -89,7 +89,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'vortexis_backend.wsgi.application'
 
 # CORS Configuration
-CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=True, cast=bool)
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='', cast=lambda v: [s.strip() for s in v.split(',') if s.strip()])
 
 # Security Settings
@@ -111,8 +111,12 @@ if not DEBUG:
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config('PGDATABASE'),
+        'USER': config('PGUSER'),
+        'PASSWORD': config('PGPASSWORD'),
+        'HOST': config('PGHOST'),
+        'PORT': config('DB_PORT', default='5432'),
     }
 }
 
