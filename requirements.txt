@@ -34,3 +34,5 @@ uritemplate==4.1.1
 urllib3==2.3.0
 gunicorn
 pillow
+cloudinary==1.41.0
+django-cloudinary-storage==0.3.0

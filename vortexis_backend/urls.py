@@ -44,5 +44,7 @@ urlpatterns = [
     path(f'api/v1/team/', include('team.urls'), name='team'),
     path(f'api/v1/project/', include('project.urls'), name='project')
 ]
+
+# Serve media files in development
 if settings.DEBUG:
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

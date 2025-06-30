@@ -1,128 +1,54 @@
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.generics import GenericAPIView
+from rest_framework.viewsets import ModelViewSet
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
-from .serializers import TeamSerializer
+from rest_framework.exceptions import PermissionDenied
+from .serializers import CreateTeamSerializer, TeamSerializer, UpdateTeamSerializer, AddMemberSerializer, RemoveMemberSerializer
 from .models import Team
 from drf_yasg.utils import swagger_auto_schema
 
 # Create your views here.
 
-class CreateTeamView(GenericAPIView):
-    serializer_class = TeamSerializer.CreateTeamSerializer
+class TeamViewSet(ModelViewSet):
+    queryset = Team.objects.all()
     permission_classes = [IsAuthenticated]
-    @swagger_auto_schema(
-        request_body=serializer_class,
-        responses={201: 'Team created successfully', 400: 'Bad Request'},
-        operation_description="Create a new team.",
-        tags=['team']
-    )
-    def post(self, request):
-        serializer = self.serializer_class(data = request.data, context = {'request': request})
-        if serializer.is_valid(raise_exception=True):
-            team = serializer.save()
-            return Response({'team': TeamSerializer.TeamSerializer(team).data}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-class GetTeamsView(GenericAPIView):
-    permission_classes = [IsAuthenticated]
-    @swagger_auto_schema(
-        responses={200: 'Teams retrieved successfully', 400: 'Bad Request'},
-        operation_description="Get all teams.",
-        tags=['team']
-    )
-    def get(self, request):
-        teams = Team.objects.all()
-        return Response({'teams': TeamSerializer.TeamSerializer(teams, many=True).data}, status=status.HTTP_200_OK)
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return CreateTeamSerializer
+        elif self.action in ['update', 'partial_update']:
+            return UpdateTeamSerializer
+        return TeamSerializer
     
-class GetTeamView(GenericAPIView):
-    permission_classes = [IsAuthenticated]
-    @swagger_auto_schema(
-        responses={200: 'Team retrieved successfully', 400: 'Bad Request'},
-        operation_description="Get a team by id.",
-        tags=['team']
-    )
-    def get(self, request, team_id):
-        try:
-            team = Team.objects.get(id=team_id)
-        except Team.DoesNotExist:
-            return Response({'error': 'Team does not exist.'}, status=status.HTTP_404_NOT_FOUND)
-        return Response({'team': TeamSerializer.TeamSerializer(team).data}, status=status.HTTP_200_OK)
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Team.objects.none()
+        # Return teams where user is a member or organizer
+        return Team.objects.filter(members=self.request.user).distinct()
     
-class UpdateTeamView(GenericAPIView):
-    serializer_class = TeamSerializer.UpdateTeamSerializer
-    permission_classes = [IsAuthenticated]
-    @swagger_auto_schema(
-        request_body=serializer_class,
-        responses={200: 'Team updated successfully', 400: 'Bad Request'},
-        operation_description="Update a team.",
-        tags=['team']
-    )
-    def put(self, request, team_id):
-        try:
-            team = Team.objects.get(id=team_id)
-        except Team.DoesNotExist:
-            return Response({'error': 'Team does not exist.'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = self.serializer_class(data = request.data, context = {'request': request})
-        if serializer.is_valid(raise_exception=True):
-            team = serializer.save()
-            return Response({'team': TeamSerializer.TeamSerializer(team).data}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def perform_create(self, serializer):
+        serializer.save()
     
-class DeleteTeamView(GenericAPIView):
-    permission_classes = [IsAuthenticated]
-    @swagger_auto_schema(
-        responses={204: 'Team deleted successfully', 400: 'Bad Request'},
-        operation_description="Delete a team by id.",
-        tags=['team']
-    )
-    def delete(self, request, team_id):
-        try:
-            team = Team.objects.get(id=team_id)
-        except Team.DoesNotExist:
-            return Response({'error': 'Team does not exist.'}, status=status.HTTP_404_NOT_FOUND)
-        user = request.user
-        if team.organizer != user:
-            return Response({'error': 'You are not authorized to delete this team.'}, status=status.HTTP_403_FORBIDDEN)
-        team.delete()
-        return Response({'success': 'Team deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+    def perform_destroy(self, instance):
+        if instance.organizer != self.request.user:
+            raise PermissionDenied("You are not authorized to delete this team.")
+        instance.delete()
     
-class AddMemberView(GenericAPIView):
-    serializer_class = TeamSerializer.AddMemberSerializer
-    permission_classes = [IsAuthenticated]
-    @swagger_auto_schema(
-        request_body=serializer_class,
-        responses={200: 'Member added successfully', 400: 'Bad Request'},
-        operation_description="Add a member to a team.",
-        tags=['team']
-    )
-    def post(self, request, team_id):
-        try:
-            team = Team.objects.get(id=team_id)
-        except Team.DoesNotExist:
-            return Response({'error': 'Team does not exist.'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = self.serializer_class(team, data = request.data, context = {'request': request, 'instance': team})
-        if serializer.is_valid(raise_exception=True):
-            team = serializer.save()
-            return Response({'team': TeamSerializer.TeamSerializer(team).data}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    @action(detail=True, methods=['post'], serializer_class=AddMemberSerializer)
+    def add_member(self, request, pk=None):
+        """Add a member to the team"""
+        team = self.get_object()
+        serializer = AddMemberSerializer(team, data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'team': TeamSerializer(team).data}, status=status.HTTP_200_OK)
     
-class RemoveMemberView(GenericAPIView):
-    serializer_class = TeamSerializer.RemoveMemberSerializer
-    permission_classes = [IsAuthenticated]
-    @swagger_auto_schema(
-        request_body=serializer_class,
-        responses={200: 'Member removed successfully', 400: 'Bad Request'},
-        operation_description="Remove a member from a team.",
-        tags=['team']
-    )
-    def post(self, request, team_id):
-        try:
-            team = Team.objects.get(id=team_id)
-        except Team.DoesNotExist:
-            return Response({'error': 'Team does not exist.'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = self.serializer_class(team, data = request.data, context = {'request': request, 'instance': team})
-        if serializer.is_valid(raise_exception=True):
-            team = serializer.save()
-            return Response({'team': TeamSerializer.TeamSerializer(team).data}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    @action(detail=True, methods=['post'], serializer_class=RemoveMemberSerializer)
+    def remove_member(self, request, pk=None):
+        """Remove a member from the team"""
+        team = self.get_object()
+        serializer = RemoveMemberSerializer(team, data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'team': TeamSerializer(team).data}, status=status.HTTP_200_OK)

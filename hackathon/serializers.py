@@ -3,8 +3,7 @@ from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from django.utils import timezone
 from team.models import Team
 from team.serializers import TeamSerializer
-from .models import Hackathon, Theme, Rule, Submission, Review, Prize
-from project.models import Project
+from .models import Hackathon, Theme, Submission, Review
 from accounts.models import User
 
 
@@ -18,89 +17,10 @@ class ThemeSerializer(serializers.ModelSerializer):
         return value.strip().lower()
 
 
-class RuleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Rule
-        fields = ['id', 'description', 'hackathon', 'created_at', 'updated_at']
-        read_only_fields = ['created_at', 'updated_at', 'hackathon']
-
-    def validate_description(self, value):
-        if not value.strip():
-            raise serializers.ValidationError("Description cannot be empty.")
-        return value
-
-
-class PrizeSerializer(serializers.ModelSerializer):
-    recipient = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Prize
-        fields = ['id', 'name', 'amount', 'hackathon', 'recipient', 'created_at', 'updated_at']
-        read_only_fields = ['created_at', 'updated_at', 'hackathon']
-
-    def get_recipient(self, obj):
-        if obj.recipient:
-            return {'id': obj.recipient.id, 'name': obj.recipient.name}
-        return None
-
-    def validate(self, data):
-        if data.get('amount', 0) < 0:
-            raise serializers.ValidationError({"amount": "Prize amount cannot be negative."})
-        return data
-
-
-class ProjectSerializer(serializers.ModelSerializer):
-    team = serializers.PrimaryKeyRelatedField(queryset=Team.objects.all())
-    submitted = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Project
-        fields = ['id', 'title', 'description', 'github_url', 'live_link', 'demo_video_url', 'presentation_link', 'team', 'submitted', 'created_at', 'updated_at']
-        read_only_fields = ['created_at', 'updated_at', 'submitted']
-        ref_name = 'HackathonProjectSerializer'
-
-    def get_submitted(self, obj):
-        return Submission.objects.filter(project=obj).exists()
-
-    def validate(self, data):
-        request = self.context.get('request')
-        if not request:
-            raise serializers.ValidationError("Request context is required.")
-        user = request.user
-        team = data.get('team')
-        if team and team not in user.teams.all():
-            raise serializers.ValidationError({"team": "You are not a member of this team."})
-        if data.get('github_url') and not data['github_url'].startswith(('http://', 'https://')):
-            raise serializers.ValidationError({"github_url": "GitHub URL must start with http:// or https://"})
-        if data.get('live_link') and not data['live_link'].startswith(('http://', 'https://')):
-            raise serializers.ValidationError({"live_link": "Live link must start with http:// or https://"})
-        return data
-
-
-class CreateProjectSerializer(ProjectSerializer):
-    class Meta(ProjectSerializer.Meta):
-        fields = ['title', 'description', 'github_url', 'live_link', 'demo_video_url', 'presentation_link', 'team']
-        ref_name = 'HackathonCreateProjectSerializer'
-
-
-class UpdateProjectSerializer(ProjectSerializer):
-    class Meta(ProjectSerializer.Meta):
-        fields = ['title', 'description', 'github_url', 'live_link', 'demo_video_url', 'presentation_link']
-        extra_kwargs = {
-            'title': {'required': False},
-            'description': {'required': False},
-            'github_url': {'required': False},
-            'live_link': {'required': False},
-            'demo_video_url': {'required': False},
-            'presentation_link': {'required': False},
-        }
-        ref_name = 'HackathonUpdateProjectSerializer'
-
-    def validate(self, data):
-        data = super().validate(data)
-        if self.instance.submitted:
-            raise serializers.ValidationError("Cannot update a project that has been submitted.")
-        return data
+class PrizeDetailSerializer(serializers.Serializer):
+    """A serializer for the structure of a single prize object."""
+    name = serializers.CharField(max_length=100)
+    amount = serializers.IntegerField()
 
 
 class SubmitProjectSerializer(serializers.Serializer):
@@ -115,18 +35,21 @@ class SubmitProjectSerializer(serializers.Serializer):
             hackathon = Hackathon.objects.get(id=value)
         except Hackathon.DoesNotExist:
             raise serializers.ValidationError("Hackathon does not exist.")
-        project = self.instance
+        return value
+
+    def save(self, **kwargs):
+        from project.models import Project
+        project_id = self.context.get('project_id')
+        project = Project.objects.get(id=project_id)
+        hackathon = Hackathon.objects.get(id=self.validated_data['hackathon_id'])
+        
         if Submission.objects.filter(project=project, hackathon=hackathon).exists():
             raise serializers.ValidationError("This project is already submitted to this hackathon.")
-        if project.team not in hackathon.participants.all():
+        if project.team not in hackathon.teams.all():
             raise serializers.ValidationError("Your team is not registered for this hackathon.")
         if hackathon.end_date < timezone.now().date():
             raise serializers.ValidationError("Hackathon submission period has ended.")
-        return value
-
-    def create(self, validated_data):
-        project = self.instance
-        hackathon = Hackathon.objects.get(id=validated_data['hackathon_id'])
+        
         submission = Submission.objects.create(project=project, hackathon=hackathon, team=project.team)
         return submission
 
@@ -177,27 +100,35 @@ class SubmissionSerializer(serializers.ModelSerializer):
 
 
 class CreateSubmissionSerializer(serializers.ModelSerializer):
-    project = serializers.PrimaryKeyRelatedField(queryset=Project.objects.all())
+    project = serializers.IntegerField()
 
     class Meta:
         model = Submission
         fields = ['project']
 
     def validate_project(self, value):
+        from project.models import Project
         request = self.context.get('request')
         user = request.user
-        if value.team not in user.teams.all():
+        try:
+            project = Project.objects.get(id=value)
+        except Project.DoesNotExist:
+            raise serializers.ValidationError("Project does not exist.")
+        
+        if project.team not in user.teams.all():
             raise serializers.ValidationError("You are not a member of this project's team.")
-        if Submission.objects.filter(project=value, hackathon=self.context.get('hackathon')).exists():
+        if Submission.objects.filter(project=project, hackathon=self.context.get('hackathon')).exists():
             raise serializers.ValidationError("This project is already submitted to this hackathon.")
         return value
 
     def create(self, validated_data):
+        from project.models import Project
         hackathon = self.context.get('hackathon')
+        project = Project.objects.get(id=validated_data['project'])
         return Submission.objects.create(
-            project=validated_data['project'],
+            project=project,
             hackathon=hackathon,
-            team=validated_data['project'].team
+            team=project.team
         )
 
 
@@ -243,8 +174,8 @@ class ReviewSerializer(serializers.ModelSerializer):
 class HackathonSerializer(serializers.ModelSerializer):
     participants = serializers.SerializerMethodField()
     themes = ThemeSerializer(many=True, read_only=True)
-    rules = RuleSerializer(many=True, read_only=True)
-    prizes = PrizeSerializer(many=True, read_only=True)
+    rules = serializers.ListField(child=serializers.CharField(), required=False)
+    prizes = PrizeDetailSerializer(many=True, required=False)
     submissions = SubmissionSerializer(many=True, read_only=True)
 
     class Meta:
@@ -256,8 +187,19 @@ class HackathonSerializer(serializers.ModelSerializer):
 
 
 class CreateHackathonSerializer(HackathonSerializer):
+    rules = serializers.JSONField(required=False, help_text='A JSON list of rule strings, e.g., ["Rule 1", "Rule 2"]')
+    prizes = serializers.JSONField(required=False, help_text='A JSON list of prize objects, e.g., [{"name": "1st Place", "amount": 1000}]')
+
     class Meta(HackathonSerializer.Meta):
-        fields = ['title', 'description', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'min_team_size', 'max_team_size']
+        fields = ['title', 'description', 'banner_image', 'visibility', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'min_team_size', 'max_team_size', 'rules', 'prizes']
+
+    def validate_prizes(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Prizes must be a list of objects.")
+        for prize_data in value:
+            serializer = PrizeDetailSerializer(data=prize_data)
+            serializer.is_valid(raise_exception=True)
+        return value
 
     def validate(self, data):
         request = self.context.get('request')
@@ -285,9 +227,20 @@ class CreateHackathonSerializer(HackathonSerializer):
 
 
 class UpdateHackathonSerializer(HackathonSerializer):
+    rules = serializers.JSONField(required=False, help_text='A JSON list of rule strings, e.g., ["Rule 1", "Rule 2"]')
+    prizes = serializers.JSONField(required=False, help_text='A JSON list of prize objects, e.g., [{"name": "1st Place", "amount": 1000}]')
+
     class Meta(HackathonSerializer.Meta):
-        fields = ['title', 'description', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'min_team_size', 'max_team_size', 'visibility']
+        fields = ['title', 'description', 'banner_image', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'min_team_size', 'max_team_size', 'visibility', 'rules', 'prizes']
         extra_kwargs = {field: {'required': False} for field in fields}
+
+    def validate_prizes(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Prizes must be a list of objects.")
+        for prize_data in value:
+            serializer = PrizeDetailSerializer(data=prize_data)
+            serializer.is_valid(raise_exception=True)
+        return value
 
     def validate(self, data):
         request = self.context.get('request')

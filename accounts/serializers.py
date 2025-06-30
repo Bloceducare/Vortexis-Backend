@@ -110,7 +110,7 @@ class UserSerializer:
                 'id': user.id,
                 'username': user.username,
                 'email': user.email,
-                'full_name': user.get_full_name(),
+                'full_name': user.get_full_name,
                 'access_token': user_tokens['access'],
                 'refresh_token': user_tokens['refresh']
             }

@@ -9,24 +9,34 @@ from django.conf import settings
 from django.utils import timezone
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser, FormParser
+from drf_yasg import openapi
 
-from project.models import Project
 from team.models import Team
-from .models import Hackathon, Theme, Rule, Submission, Review, Prize
+from .models import Hackathon, Theme, Submission, Review
 from .serializers import (
-    CreateProjectSerializer, HackathonSerializer, CreateHackathonSerializer, ProjectSerializer, SubmitProjectSerializer, UpdateHackathonSerializer,
-    RegisterHackathonSerializer, ThemeSerializer, RuleSerializer,
-    SubmissionSerializer, CreateSubmissionSerializer, UpdateProjectSerializer, UpdateSubmissionSerializer,
-    ReviewSerializer, PrizeSerializer, InviteJudgeSerializer
+    HackathonSerializer, CreateHackathonSerializer, SubmitProjectSerializer, UpdateHackathonSerializer,
+    RegisterHackathonSerializer, ThemeSerializer,
+    SubmissionSerializer, CreateSubmissionSerializer, UpdateSubmissionSerializer,
+    ReviewSerializer, InviteJudgeSerializer
 )
 
 
 class HackathonCreateView(GenericAPIView):
     permission_classes = [IsAuthenticated, IsOrganizer]
     serializer_class = CreateHackathonSerializer
+    parser_classes = (MultiPartParser, FormParser)
 
     @swagger_auto_schema(
-        request_body=serializer_class,
+        request_body=CreateHackathonSerializer,
+        manual_parameters=[
+            openapi.Parameter(
+                'banner_image',
+                openapi.IN_FORM,
+                description="Banner image file",
+                type=openapi.TYPE_FILE
+            ),
+        ],
         responses={
             201: HackathonSerializer,
             400: "Bad Request",
@@ -207,49 +217,6 @@ class InviteJudgeView(GenericAPIView):
         return Response({"message": f"Judge {judge.username} invited successfully."}, status=status.HTTP_200_OK)
 
 
-class ProjectViewSet(ModelViewSet):
-    permission_classes = [IsAuthenticated]
-    serializer_class = ProjectSerializer
-
-    def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return Project.objects.none()
-        return Project.objects.filter(team__members=self.request.user)
-
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return CreateProjectSerializer
-        elif self.action in ['update', 'partial_update']:
-            return UpdateProjectSerializer
-        return ProjectSerializer
-
-    def perform_create(self, serializer):
-        serializer.save()
-
-    @swagger_auto_schema(
-        responses={
-            200: ProjectSerializer(many=True),
-            401: "Unauthorized"
-        },
-        operation_description="List all projects for the authenticated user.",
-        tags=['projects']
-    )
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    @swagger_auto_schema(
-        request_body=CreateProjectSerializer,
-        responses={
-            201: ProjectSerializer,
-            400: "Bad Request",
-            401: "Unauthorized"
-        },
-        operation_description="Create a new project.",
-        tags=['projects']
-    )
-    def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
-
 
 class SubmitProjectView(GenericAPIView):
     permission_classes = [IsAuthenticated]
@@ -267,13 +234,14 @@ class SubmitProjectView(GenericAPIView):
         tags=['projects']
     )
     def post(self, request, project_id):
+        from project.models import Project
         try:
             project = Project.objects.get(id=project_id)
         except Project.DoesNotExist:
             return Response({"error": "Project does not exist."}, status=status.HTTP_404_NOT_FOUND)
         if project.team not in request.user.teams.all():
             return Response({"error": "You are not a member of this project's team."}, status=status.HTTP_403_FORBIDDEN)
-        serializer = self.serializer_class(project, data=request.data, context={'request': request})
+        serializer = self.serializer_class(data=request.data, context={'request': request, 'project_id': project_id})
         serializer.is_valid(raise_exception=True)
         submission = serializer.save()
         # Send email notification to team members
@@ -361,31 +329,6 @@ class ReviewViewSet(ModelViewSet):
         )
 
 
-class PrizeViewSet(ModelViewSet):
-    permission_classes = [IsAuthenticated, IsOrganizer]
-    serializer_class = PrizeSerializer
-
-    def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return Prize.objects.none()
-        hackathon_id = self.kwargs.get('hackathon_id')
-        return Prize.objects.filter(hackathon_id=hackathon_id)
-
-    def perform_create(self, serializer):
-        hackathon = Hackathon.objects.get(id=self.kwargs['hackathon_id'])
-        serializer.save(hackathon=hackathon)
-        # Send email notification if recipient is assigned
-        prize = serializer.instance
-        if prize.recipient:
-            send_mail(
-                subject=f"Congratulations! You've Won {prize.name}",
-                message=f"Dear {prize.recipient.members.first().get_full_name},\n\nYour team '{prize.recipient.name}' has won the '{prize.name}' prize for '{hackathon.title}'.\nAmount: {prize.amount}",
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[member.email for member in prize.recipient.members.all()],
-                fail_silently=True
-            )
-
-
 class ThemeViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated, IsOrganizer]
     serializer_class = ThemeSerializer
@@ -400,21 +343,6 @@ class ThemeViewSet(ModelViewSet):
         hackathon = Hackathon.objects.get(id=self.kwargs['hackathon_id'])
         theme = serializer.save()
         hackathon.themes.add(theme)
-
-
-class RuleViewSet(ModelViewSet):
-    permission_classes = [IsAuthenticated, IsOrganizer]
-    serializer_class = RuleSerializer
-
-    def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
-            return Rule.objects.none()
-        hackathon_id = self.kwargs.get('hackathon_id')
-        return Rule.objects.filter(hackathon_id=hackathon_id)
-
-    def perform_create(self, serializer):
-        hackathon = Hackathon.objects.get(id=self.kwargs['hackathon_id'])
-        serializer.save(hackathon=hackathon)
 
 
 class JudgeHackathonsView(APIView):
