@@ -14,6 +14,7 @@ class Hackathon(models.Model):
     start_date = models.DateField(null=False, blank=False)
     visibility = models.BooleanField(default=False, null=False)
     end_date = models.DateField(null=False, blank=False)
+    submission_deadline = models.DateTimeField(null=False, blank=False)
     judges = models.ManyToManyField('accounts.User', related_name='judged_hackathons', blank=True)
     min_team_size = models.IntegerField('minimum team size', null=False, default=1, validators=[MinValueValidator(1), MaxValueValidator(100)])
     max_team_size = models.IntegerField('maximum team size', null=False, default=5, validators=[MinValueValidator(1), MaxValueValidator(100)])
