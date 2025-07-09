@@ -47,7 +47,7 @@ class SubmitProjectSerializer(serializers.Serializer):
             raise serializers.ValidationError("This project is already submitted to this hackathon.")
         if project.team not in hackathon.teams.all():
             raise serializers.ValidationError("Your team is not registered for this hackathon.")
-        if hackathon.end_date < timezone.now().date():
+        if hackathon.submission_deadline < timezone.now():
             raise serializers.ValidationError("Hackathon submission period has ended.")
         
         submission = Submission.objects.create(project=project, hackathon=hackathon, team=project.team)
@@ -191,7 +191,7 @@ class CreateHackathonSerializer(HackathonSerializer):
     prizes = serializers.JSONField(required=False, help_text='A JSON list of prize objects, e.g., [{"name": "1st Place", "amount": 1000}]')
 
     class Meta(HackathonSerializer.Meta):
-        fields = ['title', 'description', 'banner_image', 'visibility', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'min_team_size', 'max_team_size', 'rules', 'prizes']
+        fields = ['title', 'description', 'banner_image', 'visibility', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'rules', 'prizes']
 
     def validate_prizes(self, value):
         if not isinstance(value, list):
@@ -210,6 +210,8 @@ class CreateHackathonSerializer(HackathonSerializer):
             raise serializers.ValidationError("Only organizers with an approved organization can create a hackathon.")
         if data.get('start_date') and data.get('end_date') and data['start_date'] > data['end_date']:
             raise serializers.ValidationError("Start date must be before end date.")
+        if data.get('end_date') and data.get('submission_deadline') and data['submission_deadline'].date() > data['end_date']:
+            raise serializers.ValidationError("Submission deadline must be before or on the end date.")
         if data.get('min_team_size') and data.get('max_team_size') and data['min_team_size'] > data['max_team_size']:
             raise serializers.ValidationError("Minimum team size cannot exceed maximum team size.")
         return data
@@ -231,7 +233,7 @@ class UpdateHackathonSerializer(HackathonSerializer):
     prizes = serializers.JSONField(required=False, help_text='A JSON list of prize objects, e.g., [{"name": "1st Place", "amount": 1000}]')
 
     class Meta(HackathonSerializer.Meta):
-        fields = ['title', 'description', 'banner_image', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'min_team_size', 'max_team_size', 'visibility', 'rules', 'prizes']
+        fields = ['title', 'description', 'banner_image', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'visibility', 'rules', 'prizes']
         extra_kwargs = {field: {'required': False} for field in fields}
 
     def validate_prizes(self, value):
@@ -252,6 +254,8 @@ class UpdateHackathonSerializer(HackathonSerializer):
             raise serializers.ValidationError("You are not authorized to update this hackathon.")
         if data.get('start_date') and data.get('end_date') and data['start_date'] > data['end_date']:
             raise serializers.ValidationError("Start date must be before end date.")
+        if data.get('end_date') and data.get('submission_deadline') and data['submission_deadline'].date() > data['end_date']:
+            raise serializers.ValidationError("Submission deadline must be before or on the end date.")
         if data.get('min_team_size') and data.get('max_team_size') and data['min_team_size'] > data['max_team_size']:
             raise serializers.ValidationError("Minimum team size cannot exceed maximum team size.")
         return data
