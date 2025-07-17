@@ -4,6 +4,7 @@ from rest_framework.generics import GenericAPIView, ListCreateAPIView, RetrieveU
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
 from accounts.permissions import IsOrganizer, IsJudge
+from accounts.serializers import UserSerializer
 from django.core.mail import send_mail
 from django.conf import settings
 from django.utils import timezone
@@ -360,4 +361,27 @@ class JudgeHackathonsView(APIView):
     def get(self, request):
         hackathons = Hackathon.objects.filter(judges=request.user)
         serializer = HackathonSerializer(hackathons, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class HackathonJudgesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={
+            200: UserSerializer.RetrieveSerializer(many=True),
+            401: "Unauthorized",
+            404: "Hackathon not found"
+        },
+        operation_description="Fetch all judges for a hackathon.",
+        tags=['hackathons']
+    )
+    def get(self, request, hackathon_id):
+        try:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon does not exist."}, status=status.HTTP_404_NOT_FOUND)
+        
+        judges = hackathon.judges.all()
+        serializer = UserSerializer.RetrieveSerializer(judges, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
