@@ -14,6 +14,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from drf_yasg import openapi
 
 from team.models import Team
+from team.serializers import TeamSerializer
 from .models import Hackathon, Theme, Submission, Review
 from .serializers import (
     HackathonSerializer, CreateHackathonSerializer, SubmitProjectSerializer, UpdateHackathonSerializer,
@@ -384,4 +385,27 @@ class HackathonJudgesView(APIView):
         
         judges = hackathon.judges.all()
         serializer = UserSerializer.RetrieveSerializer(judges, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class HackathonParticipantsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={
+            200: TeamSerializer(many=True),
+            401: "Unauthorized",
+            404: "Hackathon not found"
+        },
+        operation_description="Fetch all participants (teams) for a hackathon.",
+        tags=['hackathons']
+    )
+    def get(self, request, hackathon_id):
+        try:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon does not exist."}, status=status.HTTP_404_NOT_FOUND)
+        
+        participants = hackathon.participants.all()
+        serializer = TeamSerializer(participants, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
