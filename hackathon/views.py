@@ -320,11 +320,16 @@ class ReviewViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(judge=self.request.user)
-        # Send email notification to submission team
+        # Update submission status to reviewed
         review = serializer.instance
+        submission = review.submission
+        if submission.status == 'pending':
+            submission.status = 'reviewed'
+            submission.save()
+        # Send email notification to submission team
         send_mail(
             subject="New Review for Your Submission",
-            message=f"Dear {review.submission.team.members.first().get_full_name},\n\nYour submission '{review.submission.project.title}' for '{review.submission.hackathon.title}' has received a new review.\nScore: {review.score}\nComments: {review.review or 'No comments provided'}",
+            message=f"Dear {review.submission.team.members.first().get_full_name},\n\nYour submission '{review.submission.project.title}' for '{review.submission.hackathon.title}' has received a new review.\nScore: {review.overall_score}\nComments: {review.review or 'No comments provided'}",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[member.email for member in review.submission.team.members.all()],
             fail_silently=True
@@ -408,4 +413,25 @@ class HackathonParticipantsView(APIView):
         
         participants = hackathon.participants.all()
         serializer = TeamSerializer(participants, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class OrganizerHackathonsView(APIView):
+    permission_classes = [IsAuthenticated, IsOrganizer]
+
+    @swagger_auto_schema(
+        responses={
+            200: HackathonSerializer(many=True),
+            401: "Unauthorized",
+            403: "Forbidden"
+        },
+        operation_description="Fetch all hackathons hosted by the authenticated organizer.",
+        tags=['hackathons']
+    )
+    def get(self, request):
+        if not request.user.organization:
+            return Response({"error": "You don't have an organization."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        hackathons = Hackathon.objects.filter(organization=request.user.organization)
+        serializer = HackathonSerializer(hackathons, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
