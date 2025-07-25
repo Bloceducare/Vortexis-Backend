@@ -41,10 +41,17 @@ class Theme(models.Model):
         return self.name
 
 class Submission(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('reviewed', 'Reviewed'),
+        ('rejected', 'Rejected'),
+    ]
+    
     project = models.OneToOneField('project.Project', related_name='submission', on_delete=models.CASCADE)
     hackathon = models.ForeignKey(Hackathon, related_name='submissions', on_delete=models.CASCADE)
     team = models.ForeignKey('team.Team', related_name='submissions', on_delete=models.CASCADE)
     approved = models.BooleanField(default=False)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
