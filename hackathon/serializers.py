@@ -62,7 +62,7 @@ class SubmissionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Submission
-        fields = ['id', 'project', 'team', 'hackathon', 'approved', 'reviews', 'created_at', 'updated_at']
+        fields = ['id', 'project', 'team', 'hackathon', 'approved', 'status', 'reviews', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at', 'hackathon', 'project', 'team', 'reviews']
 
     def get_project(self, obj):
@@ -104,7 +104,7 @@ class CreateSubmissionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Submission
-        fields = ['project']
+        fields = ['project', 'status']
 
     def validate_project(self, value):
         from project.models import Project
@@ -135,9 +135,14 @@ class CreateSubmissionSerializer(serializers.ModelSerializer):
 class UpdateSubmissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Submission
-        fields = ['approved']
+        fields = ['approved', 'status']
 
     def validate_approved(self, value):
+        if not self.context['request'].user.is_organizer:
+            raise serializers.ValidationError("Only organizers can update submission status.")
+        return value
+    
+    def validate_status(self, value):
         if not self.context['request'].user.is_organizer:
             raise serializers.ValidationError("Only organizers can update submission status.")
         return value
