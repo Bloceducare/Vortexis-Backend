@@ -165,7 +165,7 @@ USE_TZ = True
 
 AUTH_USER_MODEL = 'accounts.User'
 
-EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
 EMAIL_HOST_USER = config('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 EMAIL_PORT = config('EMAIL_PORT')
