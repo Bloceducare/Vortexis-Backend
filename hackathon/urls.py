@@ -4,7 +4,7 @@ from .views import (
     HackathonCreateView, HackathonListView, HackathonRetrieveView,
     RegisterForHackathonView, InviteJudgeView,
     SubmissionViewSet, ReviewViewSet, ThemeViewSet, SubmitProjectView, JudgeHackathonsView,
-    HackathonJudgesView, HackathonParticipantsView, OrganizerHackathonsView
+    HackathonJudgesView, HackathonParticipantsView, OrganizerHackathonsView, AllSkillsView
 )
 
 router = DefaultRouter()
@@ -23,5 +23,6 @@ urlpatterns = [
     path('<int:hackathon_id>/register/', RegisterForHackathonView.as_view(), name='hackathon_register'),
     path('<int:hackathon_id>/invite-judge/', InviteJudgeView.as_view(), name='hackathon_invite_judge'),
     path('<int:hackathon_id>/submit-project/', SubmitProjectView.as_view(), name='project_submit'),
+    path('skills/', AllSkillsView.as_view(), name='all_skills'),
     path('<int:hackathon_id>/', include(router.urls)),
 ]
