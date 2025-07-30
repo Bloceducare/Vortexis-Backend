@@ -222,15 +222,19 @@ class CreateHackathonSerializer(HackathonSerializer):
         return data
 
     def create(self, validated_data):
-        skills = validated_data.pop('skills', [])
+        skills = validated_data.pop('skills', None)
         themes = validated_data.pop('themes', [])
         hackathon = Hackathon.objects.create(
             **validated_data,
             organization=self.context['request'].user.organization
         )
-        hackathon.skills.set(skills)
+        if skills is not None:
+            hackathon.skills.set(skills)
         hackathon.themes.set(themes)
         return hackathon
+
+    def get_skills(self, obj):
+        return [skill.name for skill in obj.skills.all()]
 
 
 class UpdateHackathonSerializer(HackathonSerializer):
