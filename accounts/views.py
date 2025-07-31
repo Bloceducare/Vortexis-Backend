@@ -1,10 +1,12 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.generics import GenericAPIView
+from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 from drf_yasg.utils import swagger_auto_schema
-from .serializers import UserSerializer, ProfileSerializer
-from .models import User, Profile
+from .serializers import UserSerializer, ProfileSerializer, SkillSerializer
+from .models import User, Profile, Skill
 from .utils import send_otp_mail
 
 
@@ -284,3 +286,119 @@ class ProfileDeleteView(GenericAPIView):
             return Response({"error": "User does not exist."}, status=status.HTTP_404_NOT_FOUND)
         except Profile.DoesNotExist:
             return Response({"error": "Profile does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class SkillViewSet(ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = SkillSerializer
+    queryset = Skill.objects.all()
+
+    @swagger_auto_schema(
+        responses={
+            200: SkillSerializer(many=True),
+            401: "Unauthorized"
+        },
+        operation_description="List all skills.",
+        tags=['skills']
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        request_body=SkillSerializer,
+        responses={
+            201: SkillSerializer,
+            400: "Bad Request",
+            401: "Unauthorized"
+        },
+        operation_description="Create a new skill.",
+        tags=['skills']
+    )
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        responses={
+            200: SkillSerializer,
+            404: "Skill not found",
+            401: "Unauthorized"
+        },
+        operation_description="Retrieve a skill's details.",
+        tags=['skills']
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        request_body=SkillSerializer,
+        responses={
+            200: SkillSerializer,
+            400: "Bad Request",
+            404: "Skill not found",
+            401: "Unauthorized"
+        },
+        operation_description="Update a skill.",
+        tags=['skills']
+    )
+    def update(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        responses={
+            204: "Skill deleted successfully",
+            404: "Skill not found",
+            401: "Unauthorized"
+        },
+        operation_description="Delete a skill.",
+        tags=['skills']
+    )
+    def destroy(self, request, *args, **kwargs):
+        return super().destroy(request, *args, **kwargs)
+
+
+class UserSkillsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={
+            200: SkillSerializer(many=True),
+            404: "User not found",
+            401: "Unauthorized"
+        },
+        operation_description="Get all skills for a specific user.",
+        tags=['skills']
+    )
+    def get(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+            profile = Profile.objects.filter(user=user).first()
+            if not profile:
+                return Response({"skills": []}, status=status.HTTP_200_OK)
+            skills = profile.skills.all()
+            serializer = SkillSerializer(skills, many=True)
+            return Response({"skills": serializer.data}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({"error": "User does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class HackathonSkillsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={
+            200: SkillSerializer(many=True),
+            404: "Hackathon not found",
+            401: "Unauthorized"
+        },
+        operation_description="Get all skills for a specific hackathon.",
+        tags=['skills']
+    )
+    def get(self, request, hackathon_id):
+        from hackathon.models import Hackathon
+        try:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+            skills = hackathon.skills.all()
+            serializer = SkillSerializer(skills, many=True)
+            return Response({"skills": serializer.data}, status=status.HTTP_200_OK)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon does not exist."}, status=status.HTTP_404_NOT_FOUND)
