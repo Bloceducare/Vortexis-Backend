@@ -6,8 +6,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from drf_yasg.utils import swagger_auto_schema
 from .serializers import UserSerializer, ProfileSerializer, SkillSerializer
-from .models import User, Profile, Skill
-from .utils import send_otp_mail
+from .models import User, Profile, Skill, PasswordResetToken
+from .utils import send_otp_mail, send_password_reset_email
 
 
 class UserRegistrationView(GenericAPIView):
@@ -402,3 +402,68 @@ class HackathonSkillsView(APIView):
             return Response({"skills": serializer.data}, status=status.HTTP_200_OK)
         except Hackathon.DoesNotExist:
             return Response({"error": "Hackathon does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class ForgotPasswordView(GenericAPIView):
+    @swagger_auto_schema(
+        request_body=UserSerializer.ForgotPasswordSerializer,
+        responses={
+            200: "Password reset email sent successfully",
+            400: "Bad Request",
+            404: "User not found"
+        },
+        operation_description="Send password reset email to user.",
+        tags=['account']
+    )
+    def post(self, request):
+        serializer = UserSerializer.ForgotPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        email = serializer.validated_data['email']
+        user = User.objects.get(email=email)
+        
+        # Invalidate any existing reset tokens for this user
+        PasswordResetToken.objects.filter(user=user, is_used=False).update(is_used=True)
+        
+        # Create new reset token
+        reset_token = PasswordResetToken.objects.create(user=user)
+        
+        # Send password reset email
+        send_password_reset_email(user, reset_token)
+        
+        return Response(
+            {"message": "Password reset email sent successfully."},
+            status=status.HTTP_200_OK
+        )
+
+
+class ResetPasswordView(GenericAPIView):
+    @swagger_auto_schema(
+        request_body=UserSerializer.ResetPasswordSerializer,
+        responses={
+            200: "Password reset successful",
+            400: "Bad Request",
+            404: "Invalid token"
+        },
+        operation_description="Reset user password using reset token.",
+        tags=['account']
+    )
+    def post(self, request):
+        serializer = UserSerializer.ResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        reset_token = serializer.validated_data['reset_token']
+        new_password = serializer.validated_data['new_password']
+        
+        user = reset_token.user
+        user.set_password(new_password)
+        user.save()
+        
+        # Mark the token as used
+        reset_token.is_used = True
+        reset_token.save()
+        
+        return Response(
+            {"message": "Password reset successful."},
+            status=status.HTTP_200_OK
+        )
