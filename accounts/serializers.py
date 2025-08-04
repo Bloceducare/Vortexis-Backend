@@ -1,8 +1,9 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
-from .models import Skill, User, Profile
+from .models import Skill, User, Profile, PasswordResetToken
 from .utils import verify_otp
+from utils.cloudinary_utils import upload_image_to_cloudinary
 
 User = get_user_model()
 
@@ -20,10 +21,14 @@ class SkillSerializer(serializers.ModelSerializer):
 
 class ProfileSerializer(serializers.ModelSerializer):
     skills = SkillSerializer(many=True, required=False)
+    profile_picture_file = serializers.ImageField(write_only=True, required=False)
 
     class Meta:
         model = Profile
-        fields = ['bio', 'github', 'linkedin', 'twitter', 'website', 'location', 'profile_picture', 'skills']
+        fields = ['bio', 'github', 'linkedin', 'twitter', 'website', 'location', 'profile_picture', 'skills', 'profile_picture_file']
+        extra_kwargs = {
+            'profile_picture': {'read_only': True}
+        }
 
     def validate(self, data):
         # Validate URLs if provided
@@ -35,6 +40,13 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         skills_data = validated_data.pop('skills', [])
+        profile_picture_file = validated_data.pop('profile_picture_file', None)
+        
+        # Upload profile picture to Cloudinary if provided
+        if profile_picture_file:
+            profile_picture_url = upload_image_to_cloudinary(profile_picture_file, folder='profile_pictures')
+            validated_data['profile_picture'] = profile_picture_url
+        
         profile = Profile.objects.create(**validated_data)
         for skill_data in skills_data:
             skill, _ = Skill.objects.get_or_create(name=skill_data['name'].lower())
@@ -43,6 +55,13 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         skills_data = validated_data.pop('skills', None)
+        profile_picture_file = validated_data.pop('profile_picture_file', None)
+        
+        # Upload new profile picture to Cloudinary if provided
+        if profile_picture_file:
+            profile_picture_url = upload_image_to_cloudinary(profile_picture_file, folder='profile_pictures')
+            validated_data['profile_picture'] = profile_picture_url
+        
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
@@ -193,3 +212,33 @@ class UserSerializer:
         def delete(self, user):
             user.delete()
             return {"message": "User deleted successfully."}
+
+    class ForgotPasswordSerializer(serializers.Serializer):
+        email = serializers.EmailField()
+
+        def validate_email(self, value):
+            try:
+                user = User.objects.get(email=value)
+                if user.auth_provider != 'email':
+                    raise serializers.ValidationError(f"Password reset is not available for {user.auth_provider} accounts.")
+                return value
+            except User.DoesNotExist:
+                raise serializers.ValidationError("User with this email does not exist.")
+
+    class ResetPasswordSerializer(serializers.Serializer):
+        token = serializers.CharField()
+        new_password = serializers.CharField(min_length=8, write_only=True)
+        confirm_password = serializers.CharField(min_length=8, write_only=True)
+
+        def validate(self, data):
+            if data['new_password'] != data['confirm_password']:
+                raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+            
+            try:
+                reset_token = PasswordResetToken.objects.get(token=data['token'])
+                if not reset_token.is_valid():
+                    raise serializers.ValidationError({"token": "Token is invalid or expired."})
+                data['reset_token'] = reset_token
+                return data
+            except PasswordResetToken.DoesNotExist:
+                raise serializers.ValidationError({"token": "Invalid token."})
