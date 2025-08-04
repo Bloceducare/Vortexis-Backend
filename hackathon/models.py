@@ -5,7 +5,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 class Hackathon(models.Model):
     title = models.CharField(max_length=100, null=False, blank=False)
     description = models.TextField(null=False, blank=False)
-    banner_image = models.ImageField(upload_to='hackathon_banners/', null=True, blank=True)
+    banner_image = models.URLField(max_length=500, null=True, blank=True)
     venue = models.CharField(max_length=100, null=False, blank=False)
     details = models.TextField(null=True, blank=True)
     skills = models.ManyToManyField('accounts.Skill', related_name='hackathons', blank=True)
@@ -21,8 +21,8 @@ class Hackathon(models.Model):
     organization = models.ForeignKey('organization.Organization', related_name='hackathons', null=True, on_delete=models.SET_NULL)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    rules = models.JSONField(default=list, blank=True)
-    prizes = models.JSONField(default=list, blank=True)
+    rules = models.TextField(blank=True, help_text="Enter hackathon rules (one per line or as formatted text)")
+    prizes = models.TextField(blank=True, help_text="Enter prize information (one per line or as formatted text)")
 
     def __str__(self):
         return self.title

@@ -5,6 +5,7 @@ from team.models import Team
 from team.serializers import TeamSerializer
 from .models import Hackathon, Theme, Submission, Review
 from accounts.models import User
+from utils.cloudinary_utils import upload_image_to_cloudinary
 
 
 class ThemeSerializer(serializers.ModelSerializer):
@@ -16,11 +17,6 @@ class ThemeSerializer(serializers.ModelSerializer):
     def validate_name(self, value):
         return value.strip().lower()
 
-
-class PrizeDetailSerializer(serializers.Serializer):
-    """A serializer for the structure of a single prize object."""
-    name = serializers.CharField(max_length=100)
-    amount = serializers.IntegerField()
 
 
 class SubmitProjectSerializer(serializers.Serializer):
@@ -179,32 +175,23 @@ class ReviewSerializer(serializers.ModelSerializer):
 class HackathonSerializer(serializers.ModelSerializer):
     participants = serializers.SerializerMethodField()
     themes = ThemeSerializer(many=True, read_only=True)
-    rules = serializers.ListField(child=serializers.CharField(), required=False)
-    prizes = PrizeDetailSerializer(many=True, required=False)
     submissions = SubmissionSerializer(many=True, read_only=True)
+    banner_image_file = serializers.ImageField(write_only=True, required=False)
 
     class Meta:
         model = Hackathon
         fields = '__all__'
+        extra_kwargs = {
+            'banner_image': {'read_only': True}
+        }
 
     def get_participants(self, obj):
         return TeamSerializer(obj.participants.all(), many=True).data
 
 
 class CreateHackathonSerializer(HackathonSerializer):
-    rules = serializers.JSONField(required=False, help_text='A JSON list of rule strings, e.g., ["Rule 1", "Rule 2"]')
-    prizes = serializers.JSONField(required=False, help_text='A JSON list of prize objects, e.g., [{"name": "1st Place", "amount": 1000}]')
-
     class Meta(HackathonSerializer.Meta):
-        fields = ['title', 'description', 'banner_image', 'visibility', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'rules', 'prizes']
-
-    def validate_prizes(self, value):
-        if not isinstance(value, list):
-            raise serializers.ValidationError("Prizes must be a list of objects.")
-        for prize_data in value:
-            serializer = PrizeDetailSerializer(data=prize_data)
-            serializer.is_valid(raise_exception=True)
-        return value
+        fields = ['title', 'description', 'banner_image', 'banner_image_file', 'visibility', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'rules', 'prizes']
 
     def validate(self, data):
         request = self.context.get('request')
@@ -224,6 +211,13 @@ class CreateHackathonSerializer(HackathonSerializer):
     def create(self, validated_data):
         skills = validated_data.pop('skills', None)
         themes = validated_data.pop('themes', [])
+        banner_image_file = validated_data.pop('banner_image_file', None)
+        
+        # Upload banner image to Cloudinary if provided
+        if banner_image_file:
+            banner_image_url = upload_image_to_cloudinary(banner_image_file, folder='hackathon_banners')
+            validated_data['banner_image'] = banner_image_url
+        
         hackathon = Hackathon.objects.create(
             **validated_data,
             organization=self.context['request'].user.organization
@@ -238,20 +232,9 @@ class CreateHackathonSerializer(HackathonSerializer):
 
 
 class UpdateHackathonSerializer(HackathonSerializer):
-    rules = serializers.JSONField(required=False, help_text='A JSON list of rule strings, e.g., ["Rule 1", "Rule 2"]')
-    prizes = serializers.JSONField(required=False, help_text='A JSON list of prize objects, e.g., [{"name": "1st Place", "amount": 1000}]')
-
     class Meta(HackathonSerializer.Meta):
-        fields = ['title', 'description', 'banner_image', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'visibility', 'rules', 'prizes']
+        fields = ['title', 'description', 'banner_image', 'banner_image_file', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'visibility', 'rules', 'prizes']
         extra_kwargs = {field: {'required': False} for field in fields}
-
-    def validate_prizes(self, value):
-        if not isinstance(value, list):
-            raise serializers.ValidationError("Prizes must be a list of objects.")
-        for prize_data in value:
-            serializer = PrizeDetailSerializer(data=prize_data)
-            serializer.is_valid(raise_exception=True)
-        return value
 
     def validate(self, data):
         request = self.context.get('request')
@@ -272,6 +255,13 @@ class UpdateHackathonSerializer(HackathonSerializer):
     def update(self, instance, validated_data):
         skills = validated_data.pop('skills', None)
         themes = validated_data.pop('themes', None)
+        banner_image_file = validated_data.pop('banner_image_file', None)
+        
+        # Upload new banner image to Cloudinary if provided
+        if banner_image_file:
+            banner_image_url = upload_image_to_cloudinary(banner_image_file, folder='hackathon_banners')
+            validated_data['banner_image'] = banner_image_url
+        
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         if skills is not None:
