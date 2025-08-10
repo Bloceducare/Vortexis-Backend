@@ -3,7 +3,7 @@ from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from django.utils import timezone
 from team.models import Team
 from team.serializers import TeamSerializer
-from .models import Hackathon, Theme, Submission, Review
+from .models import Hackathon, Theme, Submission, Review, HackathonParticipant
 from accounts.models import User
 from utils.cloudinary_utils import upload_image_to_cloudinary
 
@@ -176,22 +176,23 @@ class HackathonSerializer(serializers.ModelSerializer):
     participants = serializers.SerializerMethodField()
     themes = ThemeSerializer(many=True, read_only=True)
     submissions = SubmissionSerializer(many=True, read_only=True)
-    banner_image_file = serializers.ImageField(write_only=True, required=False)
 
     class Meta:
         model = Hackathon
         fields = '__all__'
-        extra_kwargs = {
-            'banner_image': {'read_only': True}
-        }
 
     def get_participants(self, obj):
         return TeamSerializer(obj.participants.all(), many=True).data
 
 
 class CreateHackathonSerializer(HackathonSerializer):
+    banner_image_file = serializers.ImageField(write_only=True, required=False)
+    
     class Meta(HackathonSerializer.Meta):
         fields = ['title', 'description', 'banner_image', 'banner_image_file', 'visibility', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'rules', 'prizes']
+        extra_kwargs = {
+            'banner_image': {'read_only': True}
+        }
 
     def validate(self, data):
         request = self.context.get('request')
@@ -228,9 +229,12 @@ class CreateHackathonSerializer(HackathonSerializer):
 
 
 class UpdateHackathonSerializer(HackathonSerializer):
+    banner_image_file = serializers.ImageField(write_only=True, required=False)
+    
     class Meta(HackathonSerializer.Meta):
         fields = ['title', 'description', 'banner_image', 'banner_image_file', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'visibility', 'rules', 'prizes']
-        extra_kwargs = {field: {'required': False} for field in fields}
+        extra_kwargs = {field: {'required': False} for field in fields if field != 'banner_image'}
+        extra_kwargs['banner_image'] = {'read_only': True}
 
     def validate(self, data):
         request = self.context.get('request')
@@ -289,11 +293,25 @@ class RegisterHackathonSerializer(serializers.Serializer):
             raise serializers.ValidationError("Hackathon registration period has ended.")
         if team.members.count() < hackathon.min_team_size or team.members.count() > hackathon.max_team_size:
             raise serializers.ValidationError("Team size does not meet hackathon requirements.")
+        
+        # Check if all team members are individually registered for the hackathon
+        for member in team.members.all():
+            if not HackathonParticipant.objects.filter(hackathon=hackathon, user=member).exists():
+                raise serializers.ValidationError(f"Team member {member.username} is not registered for this hackathon. All members must register individually first.")
+        
         return value
 
     def update(self, instance, validated_data):
         team = Team.objects.get(id=validated_data['team_id'])
         instance.participants.add(team)
+        
+        # Update participant records for all team members
+        for member in team.members.all():
+            participant = HackathonParticipant.objects.get(hackathon=instance, user=member)
+            participant.team = team
+            participant.looking_for_team = False
+            participant.save()
+        
         return instance
 
 
@@ -311,3 +329,143 @@ class InviteJudgeSerializer(serializers.Serializer):
             return user
         except User.DoesNotExist:
             raise serializers.ValidationError("User with this email does not exist.")
+
+
+class HackathonParticipantSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+    team = serializers.SerializerMethodField()
+    skills_offered = serializers.SerializerMethodField()
+
+    class Meta:
+        model = HackathonParticipant
+        fields = ['id', 'user', 'team', 'looking_for_team', 'skills_offered', 'bio', 'has_team', 'created_at']
+        read_only_fields = ['created_at', 'has_team']
+
+    def get_user(self, obj):
+        return {
+            'id': obj.user.id,
+            'username': obj.user.username,
+            'email': obj.user.email,
+            'first_name': obj.user.first_name,
+            'last_name': obj.user.last_name
+        }
+
+    def get_team(self, obj):
+        if obj.team:
+            return {'id': obj.team.id, 'name': obj.team.name}
+        return None
+
+    def get_skills_offered(self, obj):
+        return [{'id': skill.id, 'name': skill.name} for skill in obj.skills_offered.all()]
+
+
+class IndividualRegistrationSerializer(serializers.Serializer):
+    bio = serializers.CharField(max_length=500, required=False, allow_blank=True)
+    skills_offered = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        allow_empty=True
+    )
+
+    def validate_skills_offered(self, value):
+        from accounts.models import Skill
+        if value:
+            existing_skills = Skill.objects.filter(id__in=value)
+            if len(existing_skills) != len(value):
+                raise serializers.ValidationError("One or more skills do not exist.")
+        return value
+
+    def validate(self, data):
+        request = self.context.get('request')
+        if not request:
+            raise serializers.ValidationError("Request context is required.")
+        
+        user = request.user
+        hackathon = self.context.get('hackathon')
+        
+        if not hackathon:
+            raise serializers.ValidationError("Hackathon context is required.")
+        
+        if HackathonParticipant.objects.filter(hackathon=hackathon, user=user).exists():
+            raise serializers.ValidationError("You are already registered for this hackathon.")
+        
+        if hackathon.start_date < timezone.now().date():
+            raise serializers.ValidationError("Hackathon registration period has ended.")
+        
+        return data
+
+    def create(self, validated_data):
+        from accounts.models import Skill
+        
+        skills_offered = validated_data.pop('skills_offered', [])
+        hackathon = self.context.get('hackathon')
+        user = self.context.get('request').user
+        
+        participant = HackathonParticipant.objects.create(
+            hackathon=hackathon,
+            user=user,
+            bio=validated_data.get('bio', ''),
+            looking_for_team=True
+        )
+        
+        if skills_offered:
+            skills = Skill.objects.filter(id__in=skills_offered)
+            participant.skills_offered.set(skills)
+        
+        return participant
+
+
+class JoinTeamSerializer(serializers.Serializer):
+    team_id = serializers.IntegerField()
+
+    def validate_team_id(self, value):
+        request = self.context.get('request')
+        hackathon = self.context.get('hackathon')
+        
+        try:
+            team = Team.objects.get(id=value)
+        except Team.DoesNotExist:
+            raise serializers.ValidationError("Team does not exist.")
+        
+        # Check if team is registered for this hackathon
+        if team not in hackathon.participants.all():
+            raise serializers.ValidationError("This team is not registered for this hackathon.")
+        
+        # Check if team has space
+        if team.members.count() >= hackathon.max_team_size:
+            raise serializers.ValidationError("This team is already at maximum capacity.")
+        
+        return value
+
+    def validate(self, data):
+        request = self.context.get('request')
+        hackathon = self.context.get('hackathon')
+        user = request.user
+        
+        # Check if user is registered as individual participant
+        try:
+            participant = HackathonParticipant.objects.get(hackathon=hackathon, user=user)
+        except HackathonParticipant.DoesNotExist:
+            raise serializers.ValidationError("You must register for the hackathon first before joining a team.")
+        
+        # Check if user already has a team
+        if participant.has_team:
+            raise serializers.ValidationError("You are already part of a team for this hackathon.")
+        
+        return data
+
+    def save(self):
+        team = Team.objects.get(id=self.validated_data['team_id'])
+        hackathon = self.context.get('hackathon')
+        user = self.context.get('request').user
+        
+        # Add user to team
+        team.members.add(user)
+        
+        # Update participant record
+        participant = HackathonParticipant.objects.get(hackathon=hackathon, user=user)
+        participant.team = team
+        participant.looking_for_team = False
+        participant.save()
+        
+        return participant
