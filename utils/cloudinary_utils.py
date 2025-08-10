@@ -18,6 +18,7 @@ def upload_image_to_cloudinary(image_file, folder=None):
     Raises:
         ValidationError: If upload fails or file is invalid
     """
+    print(settings.CLOUDINARY_STORAGE['API_KEY'])
     try:
         # Configure cloudinary (this will use settings.CLOUDINARY_STORAGE)
         cloudinary.config(
