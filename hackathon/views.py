@@ -626,3 +626,10 @@ class UserRegisteredHackathonsView(APIView):
         
         serializer = HackathonSerializer(all_hackathons, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+class AllSkillsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        skills = Theme.objects.values_list('name', flat=True)
+        return Response({"skills": list(skills)}, status=status.HTTP_200_OK)
