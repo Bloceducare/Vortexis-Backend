@@ -15,12 +15,13 @@ from drf_yasg import openapi
 
 from team.models import Team
 from team.serializers import TeamSerializer
-from .models import Hackathon, Theme, Submission, Review
+from .models import Hackathon, Theme, Submission, Review, HackathonParticipant
 from .serializers import (
     HackathonSerializer, CreateHackathonSerializer, SubmitProjectSerializer, UpdateHackathonSerializer,
     RegisterHackathonSerializer, ThemeSerializer,
     SubmissionSerializer, CreateSubmissionSerializer, UpdateSubmissionSerializer,
-    ReviewSerializer, InviteJudgeSerializer
+    ReviewSerializer, InviteJudgeSerializer, IndividualRegistrationSerializer,
+    HackathonParticipantSerializer, JoinTeamSerializer
 )
 
 
@@ -436,6 +437,195 @@ class OrganizerHackathonsView(APIView):
         serializer = HackathonSerializer(hackathons, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+
+class IndividualRegistrationView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = IndividualRegistrationSerializer
+
+    @swagger_auto_schema(
+        request_body=IndividualRegistrationSerializer,
+        responses={
+            201: HackathonParticipantSerializer,
+            400: "Bad Request",
+            401: "Unauthorized",
+            404: "Hackathon not found"
+        },
+        operation_description="Register as individual participant for a hackathon.",
+        tags=['hackathons']
+    )
+    def post(self, request, hackathon_id):
+        try:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon does not exist."}, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = self.serializer_class(data=request.data, context={'request': request, 'hackathon': hackathon})
+        serializer.is_valid(raise_exception=True)
+        participant = serializer.save()
+        
+        # Send email notification
+        send_mail(
+            subject="Hackathon Registration Successful",
+            message=f"Dear {request.user.get_full_name()},\n\nYou have been successfully registered for '{hackathon.title}'.\nYou can now join existing teams or create a new team.\nStart Date: {hackathon.start_date}\nEnd Date: {hackathon.end_date}",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[request.user.email],
+            fail_silently=True
+        )
+        
+        return Response(
+            {"message": "Successfully registered for hackathon.", "participant": HackathonParticipantSerializer(participant).data},
+            status=status.HTTP_201_CREATED
+        )
+
+
+class JoinTeamView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = JoinTeamSerializer
+
+    @swagger_auto_schema(
+        request_body=JoinTeamSerializer,
+        responses={
+            200: HackathonParticipantSerializer,
+            400: "Bad Request",
+            401: "Unauthorized",
+            404: "Hackathon not found"
+        },
+        operation_description="Join an existing team in a hackathon (must be registered as individual first).",
+        tags=['hackathons']
+    )
+    def post(self, request, hackathon_id):
+        try:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon does not exist."}, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = self.serializer_class(data=request.data, context={'request': request, 'hackathon': hackathon})
+        serializer.is_valid(raise_exception=True)
+        participant = serializer.save()
+        
+        team = Team.objects.get(id=serializer.validated_data['team_id'])
+        
+        # Send email notification to user and team members
+        send_mail(
+            subject=f"Joined Team for {hackathon.title}",
+            message=f"Dear {request.user.get_full_name()},\n\nYou have successfully joined team '{team.name}' for '{hackathon.title}'.",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[request.user.email],
+            fail_silently=True
+        )
+        
+        # Notify team members
+        other_members = team.members.exclude(id=request.user.id)
+        if other_members.exists():
+            send_mail(
+                subject=f"New Team Member Joined - {hackathon.title}",
+                message=f"Dear Team,\n\n{request.user.get_full_name()} has joined your team '{team.name}' for '{hackathon.title}'.",
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[member.email for member in other_members],
+                fail_silently=True
+            )
+        
+        return Response(
+            {"message": f"Successfully joined team '{team.name}'.", "participant": HackathonParticipantSerializer(participant).data},
+            status=status.HTTP_200_OK
+        )
+
+
+class HackathonIndividualParticipantsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter(
+                'looking_for_team',
+                openapi.IN_QUERY,
+                description="Filter participants looking for team (true/false)",
+                type=openapi.TYPE_BOOLEAN
+            )
+        ],
+        responses={
+            200: HackathonParticipantSerializer(many=True),
+            401: "Unauthorized",
+            404: "Hackathon not found"
+        },
+        operation_description="Fetch all individual participants for a hackathon, optionally filter by those looking for teams.",
+        tags=['hackathons']
+    )
+    def get(self, request, hackathon_id):
+        try:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon does not exist."}, status=status.HTTP_404_NOT_FOUND)
+        
+        participants = hackathon.individual_participants.all()
+        
+        # Filter by looking_for_team if specified
+        looking_for_team = request.query_params.get('looking_for_team')
+        if looking_for_team is not None:
+            looking_for_team_bool = looking_for_team.lower() in ['true', '1']
+            participants = participants.filter(looking_for_team=looking_for_team_bool)
+        
+        serializer = HackathonParticipantSerializer(participants, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class AvailableTeamsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={
+            200: TeamSerializer(many=True),
+            401: "Unauthorized",
+            404: "Hackathon not found"
+        },
+        operation_description="Fetch teams in hackathon that have available spots for new members.",
+        tags=['hackathons']
+    )
+    def get(self, request, hackathon_id):
+        try:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon does not exist."}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get teams registered for this hackathon that have available spots
+        available_teams = []
+        for team in hackathon.participants.all():
+            if team.members.count() < hackathon.max_team_size:
+                available_teams.append(team)
+        
+        serializer = TeamSerializer(available_teams, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class UserRegisteredHackathonsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={
+            200: HackathonSerializer(many=True),
+            401: "Unauthorized"
+        },
+        operation_description="Fetch all hackathons the authenticated user is registered for (either individually or through teams).",
+        tags=['hackathons']
+    )
+    def get(self, request):
+        user = request.user
+        
+        # Get hackathons where user is individually registered
+        individual_hackathons = Hackathon.objects.filter(
+            individual_participants__user=user
+        ).distinct()
+        
+        # Get hackathons where user's teams are registered
+        team_hackathons = Hackathon.objects.filter(
+            teams__members=user
+        ).distinct()
+        
+        # Combine and remove duplicates
+        all_hackathons = (individual_hackathons | team_hackathons).distinct()
+        
+        serializer = HackathonSerializer(all_hackathons, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class AllSkillsView(APIView):
     permission_classes = [IsAuthenticated]

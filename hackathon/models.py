@@ -74,3 +74,25 @@ class Review(models.Model):
     def __str__(self):
         return f"{self.judge.username}'s review for {self.submission.project.title}"
 
+class HackathonParticipant(models.Model):
+    hackathon = models.ForeignKey(Hackathon, related_name='individual_participants', on_delete=models.CASCADE)
+    user = models.ForeignKey('accounts.User', related_name='hackathon_participations', on_delete=models.CASCADE)
+    team = models.ForeignKey('team.Team', related_name='hackathon_participants', on_delete=models.SET_NULL, null=True, blank=True)
+    looking_for_team = models.BooleanField(default=True)
+    skills_offered = models.ManyToManyField('accounts.Skill', related_name='participant_offerings', blank=True)
+    bio = models.TextField(max_length=500, blank=True, help_text="Brief bio to help with team matching")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['hackathon', 'user']
+        verbose_name = 'Hackathon Participant'
+        verbose_name_plural = 'Hackathon Participants'
+
+    def __str__(self):
+        return f"{self.user.username} in {self.hackathon.title}"
+
+    @property
+    def has_team(self):
+        return self.team is not None
+

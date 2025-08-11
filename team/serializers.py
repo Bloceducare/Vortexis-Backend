@@ -149,4 +149,88 @@ class RemoveMemberSerializer(serializers.Serializer):
         member = User.objects.get(id=self.validated_data['member_id'])
         self.instance.members.remove(member)
         return self.instance
+
+
+class CreateHackathonTeamSerializer(serializers.ModelSerializer):
+    hackathon_id = serializers.IntegerField(write_only=True)
+
+    class Meta:
+        model = Team
+        fields = ['name', 'members', 'hackathon_id']
     
+    def validate(self, data):
+        from hackathon.models import Hackathon, HackathonParticipant
+        
+        request = self.context.get('request')
+        if not request:
+            raise serializers.ValidationError("Request context is required.")
+        
+        user = request.user
+        hackathon_id = data.get('hackathon_id')
+        
+        if not data.get('name'):
+            raise serializers.ValidationError("Team name is required.")
+            
+        members = data.get('members', [])
+        if not members:
+            raise serializers.ValidationError("At least one member is required.")
+            
+        if len(members) != len(set(members)):
+            raise serializers.ValidationError("Duplicate members are not allowed.")
+        
+        # Validate hackathon exists
+        try:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            raise serializers.ValidationError("Hackathon does not exist.")
+        
+        # Check if team creator is registered for the hackathon
+        if not HackathonParticipant.objects.filter(hackathon=hackathon, user=user).exists():
+            raise serializers.ValidationError("You must be registered for this hackathon to create a team.")
+        
+        # Check if all members are registered for the hackathon
+        for member_id in members:
+            try:
+                member = User.objects.get(id=member_id)
+                if not HackathonParticipant.objects.filter(hackathon=hackathon, user=member).exists():
+                    raise serializers.ValidationError(f"User {member.username} is not registered for this hackathon.")
+                # Check if member already has a team for this hackathon
+                participant = HackathonParticipant.objects.get(hackathon=hackathon, user=member)
+                if participant.has_team:
+                    raise serializers.ValidationError(f"User {member.username} is already part of a team for this hackathon.")
+            except User.DoesNotExist:
+                raise serializers.ValidationError(f"User with id {member_id} does not exist.")
+        
+        # Check team size constraints
+        team_size = len(members)
+        if team_size < hackathon.min_team_size or team_size > hackathon.max_team_size:
+            raise serializers.ValidationError(f"Team size must be between {hackathon.min_team_size} and {hackathon.max_team_size} members.")
+        
+        return data
+    
+    def create(self, validated_data):
+        from hackathon.models import Hackathon, HackathonParticipant
+        
+        hackathon_id = validated_data.pop('hackathon_id')
+        hackathon = Hackathon.objects.get(id=hackathon_id)
+        request = self.context.get('request')
+        user = request.user
+        
+        # Create team
+        team = Team.objects.create(
+            name=validated_data['name'],
+            organizer=user
+        )
+        team.members.set(validated_data['members'])
+        
+        # Register team for hackathon
+        team.hackathons.add(hackathon)
+        
+        # Update participant records for all team members
+        for member in team.members.all():
+            participant = HackathonParticipant.objects.get(hackathon=hackathon, user=member)
+            participant.team = team
+            participant.looking_for_team = False
+            participant.save()
+        
+        return team

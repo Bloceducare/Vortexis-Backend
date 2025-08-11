@@ -4,7 +4,10 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
-from .serializers import CreateTeamSerializer, TeamSerializer, UpdateTeamSerializer, AddMemberSerializer, RemoveMemberSerializer
+from rest_framework.generics import GenericAPIView
+from django.core.mail import send_mail
+from django.conf import settings
+from .serializers import CreateTeamSerializer, TeamSerializer, UpdateTeamSerializer, AddMemberSerializer, RemoveMemberSerializer, CreateHackathonTeamSerializer
 from .models import Team
 from drf_yasg.utils import swagger_auto_schema
 
@@ -52,3 +55,41 @@ class TeamViewSet(ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response({'team': TeamSerializer(team).data}, status=status.HTTP_200_OK)
+
+
+class CreateHackathonTeamView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = CreateHackathonTeamSerializer
+
+    @swagger_auto_schema(
+        request_body=CreateHackathonTeamSerializer,
+        responses={
+            201: TeamSerializer,
+            400: "Bad Request",
+            401: "Unauthorized"
+        },
+        operation_description="Create a new team for a specific hackathon (all members must be registered for the hackathon).",
+        tags=['teams']
+    )
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        team = serializer.save()
+        
+        hackathon_id = request.data.get('hackathon_id')
+        from hackathon.models import Hackathon
+        hackathon = Hackathon.objects.get(id=hackathon_id)
+        
+        # Send email notifications to all team members
+        send_mail(
+            subject=f"Team Created for {hackathon.title}",
+            message=f"Dear Team,\n\nA new team '{team.name}' has been created for '{hackathon.title}'.\nTeam Organizer: {team.organizer.get_full_name()}\nMembers: {', '.join([member.get_full_name() for member in team.members.all()])}\n\nGood luck with the hackathon!",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[member.email for member in team.members.all()],
+            fail_silently=True
+        )
+        
+        return Response(
+            {"message": "Team created successfully for hackathon.", "team": TeamSerializer(team).data},
+            status=status.HTTP_201_CREATED
+        )
