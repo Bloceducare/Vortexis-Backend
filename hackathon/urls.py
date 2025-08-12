@@ -2,10 +2,10 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     HackathonCreateView, HackathonListView, HackathonRetrieveView,
-    RegisterForHackathonView, InviteJudgeView,
+    HackathonRegistrationView, InviteJudgeView,
     SubmissionViewSet, ReviewViewSet, ThemeViewSet, SubmitProjectView, JudgeHackathonsView,
     HackathonJudgesView, HackathonParticipantsView, OrganizerHackathonsView,
-    IndividualRegistrationView, JoinTeamView, HackathonIndividualParticipantsView, AvailableTeamsView,
+    JoinTeamView, HackathonIndividualParticipantsView, AvailableTeamsView,
     UserRegisteredHackathonsView
 )
 
@@ -25,8 +25,7 @@ urlpatterns = [
     path('<int:hackathon_id>/participants/', HackathonParticipantsView.as_view(), name='hackathon_participants'),
     path('<int:hackathon_id>/individual-participants/', HackathonIndividualParticipantsView.as_view(), name='hackathon_individual_participants'),
     path('<int:hackathon_id>/available-teams/', AvailableTeamsView.as_view(), name='hackathon_available_teams'),
-    path('<int:hackathon_id>/register/', RegisterForHackathonView.as_view(), name='hackathon_register'),
-    path('<int:hackathon_id>/register-individual/', IndividualRegistrationView.as_view(), name='hackathon_register_individual'),
+    path('<int:hackathon_id>/register/', HackathonRegistrationView.as_view(), name='hackathon_register'),
     path('<int:hackathon_id>/join-team/', JoinTeamView.as_view(), name='hackathon_join_team'),
     path('<int:hackathon_id>/invite-judge/', InviteJudgeView.as_view(), name='hackathon_invite_judge'),
     path('<int:hackathon_id>/submit-project/', SubmitProjectView.as_view(), name='project_submit'),
