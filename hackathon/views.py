@@ -600,6 +600,7 @@ class UserRegisteredHackathonsView(APIView):
         serializer = HackathonSerializer(all_hackathons, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+
 class AllSkillsView(APIView):
     permission_classes = [IsAuthenticated]
 
