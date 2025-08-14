@@ -145,19 +145,17 @@ class HackathonRetrieveView(RetrieveUpdateDestroyAPIView):
         return Response({"message": "Hackathon deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
 
-class RegisterForHackathonView(GenericAPIView):
+class HackathonRegistrationView(APIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = RegisterHackathonSerializer
 
     @swagger_auto_schema(
-        request_body=serializer_class,
         responses={
-            200: HackathonSerializer,
+            201: HackathonParticipantSerializer,
             400: "Bad Request",
             401: "Unauthorized",
             404: "Hackathon not found"
         },
-        operation_description="Register a team for a hackathon.",
+        operation_description="Register authenticated user for a hackathon. After registration, user can create or join teams.",
         tags=['hackathons']
     )
     def post(self, request, hackathon_id):
@@ -165,21 +163,34 @@ class RegisterForHackathonView(GenericAPIView):
             hackathon = Hackathon.objects.get(id=hackathon_id)
         except Hackathon.DoesNotExist:
             return Response({"error": "Hackathon does not exist."}, status=status.HTTP_404_NOT_FOUND)
-        serializer = self.serializer_class(hackathon, data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        hackathon = serializer.save()
-        # Send email notification to team members
-        team = Team.objects.get(id=serializer.validated_data['team_id'])
+        
+        # Check if registration deadline has passed
+        if hackathon.submission_deadline and timezone.now() > hackathon.submission_deadline:
+            return Response({"error": "Registration deadline has passed."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if user is already registered
+        if HackathonParticipant.objects.filter(hackathon=hackathon, user=request.user).exists():
+            return Response({"error": "You are already registered for this hackathon."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create participant record
+        participant = HackathonParticipant.objects.create(
+            hackathon=hackathon,
+            user=request.user,
+            looking_for_team=True
+        )
+        
+        # Send email notification
         send_mail(
             subject="Hackathon Registration Successful",
-            message=f"Dear {request.user.get_full_name},\n\nYour team '{team.name}' has been successfully registered for '{hackathon.title}'.\nStart Date: {hackathon.start_date}\nEnd Date: {hackathon.end_date}",
+            message=f"Dear {request.user.get_full_name()},\n\nYou have been successfully registered for '{hackathon.title}'.\nYou can now join existing teams or create a new team.\nStart Date: {hackathon.start_date}\nEnd Date: {hackathon.end_date}",
             from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[member.email for member in team.members.all()],
+            recipient_list=[request.user.email],
             fail_silently=True
         )
+        
         return Response(
-            {"message": "Team registered successfully.", "hackathon": HackathonSerializer(hackathon).data},
-            status=status.HTTP_200_OK
+            {"message": "Successfully registered for hackathon.", "participant": HackathonParticipantSerializer(participant).data},
+            status=status.HTTP_201_CREATED
         )
 
 
@@ -438,44 +449,6 @@ class OrganizerHackathonsView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class IndividualRegistrationView(GenericAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = IndividualRegistrationSerializer
-
-    @swagger_auto_schema(
-        request_body=IndividualRegistrationSerializer,
-        responses={
-            201: HackathonParticipantSerializer,
-            400: "Bad Request",
-            401: "Unauthorized",
-            404: "Hackathon not found"
-        },
-        operation_description="Register as individual participant for a hackathon.",
-        tags=['hackathons']
-    )
-    def post(self, request, hackathon_id):
-        try:
-            hackathon = Hackathon.objects.get(id=hackathon_id)
-        except Hackathon.DoesNotExist:
-            return Response({"error": "Hackathon does not exist."}, status=status.HTTP_404_NOT_FOUND)
-        
-        serializer = self.serializer_class(data=request.data, context={'request': request, 'hackathon': hackathon})
-        serializer.is_valid(raise_exception=True)
-        participant = serializer.save()
-        
-        # Send email notification
-        send_mail(
-            subject="Hackathon Registration Successful",
-            message=f"Dear {request.user.get_full_name()},\n\nYou have been successfully registered for '{hackathon.title}'.\nYou can now join existing teams or create a new team.\nStart Date: {hackathon.start_date}\nEnd Date: {hackathon.end_date}",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[request.user.email],
-            fail_silently=True
-        )
-        
-        return Response(
-            {"message": "Successfully registered for hackathon.", "participant": HackathonParticipantSerializer(participant).data},
-            status=status.HTTP_201_CREATED
-        )
 
 
 class JoinTeamView(GenericAPIView):
@@ -634,3 +607,6 @@ class AllSkillsView(APIView):
     def get(self, request):
         skills = Theme.objects.values_list('name', flat=True)
         return Response({"skills": list(skills)}, status=status.HTTP_200_OK)
+
+
+
