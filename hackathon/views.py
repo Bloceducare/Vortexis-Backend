@@ -21,7 +21,7 @@ from .serializers import (
     RegisterHackathonSerializer, ThemeSerializer,
     SubmissionSerializer, CreateSubmissionSerializer, UpdateSubmissionSerializer,
     ReviewSerializer, InviteJudgeSerializer, IndividualRegistrationSerializer,
-    HackathonParticipantSerializer, JoinTeamSerializer
+    HackathonParticipantSerializer, JoinTeamSerializer, AcceptJudgeInvitationSerializer
 )
 
 
@@ -218,18 +218,71 @@ class InviteJudgeView(GenericAPIView):
             return Response({"error": "You are not authorized to invite judges for this hackathon."}, status=status.HTTP_403_FORBIDDEN)
         serializer = self.serializer_class(data=request.data, context={'request': request, 'hackathon': hackathon})
         serializer.is_valid(raise_exception=True)
-        judge = serializer.validated_data['email']
-        hackathon.judges.add(judge)
-        # Send email notification to judge
-        send_mail(
-            subject=f"Invitation to Judge {hackathon.title}",
-            message=f"Dear {judge.get_full_name},\n\nYou have been invited to judge '{hackathon.title}'.\nDetails: {hackathon.description}\nVenue: {hackathon.venue}\nStart Date: {hackathon.start_date}\nEnd Date: {hackathon.end_date}\nPlease confirm your participation.",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[judge.email],
-            fail_silently=True
+        email = serializer.validated_data['email']
+        
+        # Create judge invitation
+        from .models import JudgeInvitation
+        from accounts.utils import send_judge_invitation_email
+        
+        invitation = JudgeInvitation.objects.create(
+            hackathon=hackathon,
+            email=email,
+            invited_by=request.user
         )
-        return Response({"message": f"Judge {judge.username} invited successfully."}, status=status.HTTP_200_OK)
+        
+        # Send email notification with invitation link
+        send_judge_invitation_email(email, hackathon, invitation.token, request)
+        
+        return Response({"message": f"Judge invitation sent to {email} successfully."}, status=status.HTTP_200_OK)
 
+
+class AcceptJudgeInvitationView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = AcceptJudgeInvitationSerializer
+
+    @swagger_auto_schema(
+        request_body=serializer_class,
+        responses={
+            200: "Judge invitation accepted successfully",
+            400: "Bad Request",
+            403: "Forbidden", 
+            404: "Invitation not found"
+        },
+        operation_description="Accept a judge invitation using the invitation token.",
+        tags=['hackathons']
+    )
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        invitation = serializer.validated_data['token']
+        
+        # Check if the user's email matches the invitation email
+        if request.user.email != invitation.email:
+            return Response(
+                {"error": "This invitation was not sent to your email address."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Set user as judge if not already
+        if not request.user.is_judge:
+            request.user.is_judge = True
+            request.user.save()
+        
+        # Add user as judge to the hackathon
+        invitation.hackathon.judges.add(request.user)
+        
+        # Mark invitation as accepted
+        invitation.is_accepted = True
+        invitation.accepted_at = timezone.now()
+        invitation.save()
+        
+        return Response({
+            "message": "Judge invitation accepted successfully.",
+            "hackathon": {
+                "id": invitation.hackathon.id,
+                "title": invitation.hackathon.title
+            }
+        }, status=status.HTTP_200_OK)
 
 
 class SubmitProjectView(GenericAPIView):
