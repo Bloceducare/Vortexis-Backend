@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     AllSkillsView, HackathonCreateView, HackathonListView, HackathonRetrieveView,
-    HackathonRegistrationView, InviteJudgeView,
+    HackathonRegistrationView, InviteJudgeView, AcceptJudgeInvitationView,
     SubmissionViewSet, ReviewViewSet, ThemeViewSet, SubmitProjectView, JudgeHackathonsView,
     HackathonJudgesView, HackathonParticipantsView, OrganizerHackathonsView,
     JoinTeamView, HackathonIndividualParticipantsView, AvailableTeamsView,
@@ -29,6 +29,7 @@ urlpatterns = [
     path('<int:hackathon_id>/register/', HackathonRegistrationView.as_view(), name='hackathon_register'),
     path('<int:hackathon_id>/join-team/', JoinTeamView.as_view(), name='hackathon_join_team'),
     path('<int:hackathon_id>/invite-judge/', InviteJudgeView.as_view(), name='hackathon_invite_judge'),
+    path('accept-judge-invitation/', AcceptJudgeInvitationView.as_view(), name='accept_judge_invitation'),
     path('<int:hackathon_id>/submit-project/', SubmitProjectView.as_view(), name='project_submit'),
     path('skills/', AllSkillsView.as_view(), name='all_skills'),
     path('<int:hackathon_id>/', include(router.urls)),
