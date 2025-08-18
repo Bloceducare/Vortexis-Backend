@@ -429,7 +429,7 @@ class ForgotPasswordView(GenericAPIView):
         reset_token = PasswordResetToken.objects.create(user=user)
         
         # Send password reset email
-        send_password_reset_email(user, reset_token)
+        send_password_reset_email(user, reset_token, request)
         
         return Response(
             {"message": "Password reset email sent successfully."},
