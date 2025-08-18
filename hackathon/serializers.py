@@ -323,16 +323,45 @@ class InviteJudgeSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
     def validate_email(self, value):
+        from .models import JudgeInvitation
+        
+        hackathon = self.context.get('hackathon')
+        
+        # Check if user already exists and is already a judge for this hackathon
         try:
             user = User.objects.get(email=value)
-            if not user.is_judge:
-                raise serializers.ValidationError("User is not a judge.")
-            hackathon = self.context.get('hackathon')
             if user in hackathon.judges.all():
                 raise serializers.ValidationError("User is already a judge for this hackathon.")
-            return user
         except User.DoesNotExist:
-            raise serializers.ValidationError("User with this email does not exist.")
+            # User doesn't exist, which is fine - they'll be invited to sign up
+            pass
+        
+        # Check if there's already a pending invitation for this email
+        existing_invitation = JudgeInvitation.objects.filter(
+            hackathon=hackathon, 
+            email=value, 
+            is_accepted=False
+        ).first()
+        
+        if existing_invitation and existing_invitation.is_valid():
+            raise serializers.ValidationError("An invitation has already been sent to this email.")
+            
+        return value
+
+
+class AcceptJudgeInvitationSerializer(serializers.Serializer):
+    token = serializers.CharField()
+
+    def validate_token(self, value):
+        from .models import JudgeInvitation
+        
+        try:
+            invitation = JudgeInvitation.objects.get(token=value)
+            if not invitation.is_valid():
+                raise serializers.ValidationError("Invitation token is invalid or expired.")
+            return invitation
+        except JudgeInvitation.DoesNotExist:
+            raise serializers.ValidationError("Invalid invitation token.")
 
 
 class HackathonParticipantSerializer(serializers.ModelSerializer):
