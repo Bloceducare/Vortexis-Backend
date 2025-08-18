@@ -1,5 +1,8 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
+from datetime import timedelta
+import secrets
 
 # Create your models here.
 class Hackathon(models.Model):
@@ -95,4 +98,36 @@ class HackathonParticipant(models.Model):
     @property
     def has_team(self):
         return self.team is not None
+
+
+class JudgeInvitation(models.Model):
+    hackathon = models.ForeignKey(Hackathon, related_name='judge_invitations', on_delete=models.CASCADE)
+    email = models.EmailField()
+    token = models.CharField(max_length=100, unique=True)
+    invited_by = models.ForeignKey('accounts.User', related_name='sent_judge_invitations', on_delete=models.CASCADE)
+    is_accepted = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ['hackathon', 'email']
+        verbose_name = 'Judge Invitation'
+        verbose_name_plural = 'Judge Invitations'
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = secrets.token_urlsafe(32)
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(days=7)  # 7 days to accept
+        super().save(*args, **kwargs)
+
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+
+    def is_valid(self):
+        return not self.is_accepted and not self.is_expired()
+
+    def __str__(self):
+        return f"Judge invitation for {self.email} to {self.hackathon.title}"
 
