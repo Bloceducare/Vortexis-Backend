@@ -320,33 +320,59 @@ class RegisterHackathonSerializer(serializers.Serializer):
 
 
 class InviteJudgeSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    emails = serializers.ListField(
+        child=serializers.EmailField(),
+        min_length=1,
+        max_length=50,  # Reasonable limit for bulk invitations
+        help_text="List of email addresses to invite as judges"
+    )
 
-    def validate_email(self, value):
+    def validate_emails(self, value):
         from .models import JudgeInvitation
         
         hackathon = self.context.get('hackathon')
+        errors = {}
+        valid_emails = []
         
-        # Check if user already exists and is already a judge for this hackathon
-        try:
-            user = User.objects.get(email=value)
-            if user in hackathon.judges.all():
-                raise serializers.ValidationError("User is already a judge for this hackathon.")
-        except User.DoesNotExist:
-            # User doesn't exist, which is fine - they'll be invited to sign up
-            pass
-        
-        # Check if there's already a pending invitation for this email
-        existing_invitation = JudgeInvitation.objects.filter(
-            hackathon=hackathon, 
-            email=value, 
-            is_accepted=False
-        ).first()
-        
-        if existing_invitation and existing_invitation.is_valid():
-            raise serializers.ValidationError("An invitation has already been sent to this email.")
+        for index, email in enumerate(value):
+            email_errors = []
             
-        return value
+            # Check if user already exists and is already a judge for this hackathon
+            try:
+                user = User.objects.get(email=email)
+                if user in hackathon.judges.all():
+                    email_errors.append("User is already a judge for this hackathon.")
+            except User.DoesNotExist:
+                # User doesn't exist, which is fine - they'll be invited to sign up
+                pass
+            
+            # Check if there's already a pending invitation for this email
+            existing_invitation = JudgeInvitation.objects.filter(
+                hackathon=hackathon, 
+                email=email, 
+                is_accepted=False
+            ).first()
+            
+            if existing_invitation and existing_invitation.is_valid():
+                email_errors.append("An invitation has already been sent to this email.")
+            
+            if email_errors:
+                errors[f"email_{index}"] = email_errors
+            else:
+                valid_emails.append(email)
+        
+        if errors:
+            raise serializers.ValidationError(errors)
+            
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_emails = []
+        for email in valid_emails:
+            if email not in seen:
+                seen.add(email)
+                unique_emails.append(email)
+        
+        return unique_emails
 
 
 class AcceptJudgeInvitationSerializer(serializers.Serializer):
