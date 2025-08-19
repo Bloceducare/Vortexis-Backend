@@ -182,7 +182,7 @@ class HackathonRegistrationView(APIView):
         # Send email notification
         send_mail(
             subject="Hackathon Registration Successful",
-            message=f"Dear {request.user.get_full_name()},\n\nYou have been successfully registered for '{hackathon.title}'.\nYou can now join existing teams or create a new team.\nStart Date: {hackathon.start_date}\nEnd Date: {hackathon.end_date}",
+            message=f"Dear {request.user.get_full_name},\n\nYou have been successfully registered for '{hackathon.title}'.\nYou can now join existing teams or create a new team.\nStart Date: {hackathon.start_date}\nEnd Date: {hackathon.end_date}",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[request.user.email],
             fail_silently=True
@@ -218,22 +218,43 @@ class InviteJudgeView(GenericAPIView):
             return Response({"error": "You are not authorized to invite judges for this hackathon."}, status=status.HTTP_403_FORBIDDEN)
         serializer = self.serializer_class(data=request.data, context={'request': request, 'hackathon': hackathon})
         serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data['email']
+        emails = serializer.validated_data['emails']
         
-        # Create judge invitation
+        # Create judge invitations for all emails
         from .models import JudgeInvitation
         from accounts.utils import send_judge_invitation_email
         
-        invitation = JudgeInvitation.objects.create(
-            hackathon=hackathon,
-            email=email,
-            invited_by=request.user
-        )
+        successful_invitations = []
+        failed_invitations = []
         
-        # Send email notification with invitation link
-        send_judge_invitation_email(email, hackathon, invitation.token, request)
+        for email in emails:
+            try:
+                invitation = JudgeInvitation.objects.create(
+                    hackathon=hackathon,
+                    email=email,
+                    invited_by=request.user
+                )
+                
+                # Send email notification with invitation link
+                send_judge_invitation_email(email, hackathon, invitation.token, request)
+                successful_invitations.append(email)
+                
+            except Exception as e:
+                failed_invitations.append({
+                    'email': email,
+                    'error': str(e)
+                })
         
-        return Response({"message": f"Judge invitation sent to {email} successfully."}, status=status.HTTP_200_OK)
+        response_data = {
+            "message": f"Judge invitations processed. {len(successful_invitations)} successful, {len(failed_invitations)} failed.",
+            "successful_invitations": successful_invitations,
+            "total_sent": len(successful_invitations)
+        }
+        
+        if failed_invitations:
+            response_data["failed_invitations"] = failed_invitations
+        
+        return Response(response_data, status=status.HTTP_200_OK)
 
 
 class AcceptJudgeInvitationView(GenericAPIView):
