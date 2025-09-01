@@ -6,6 +6,12 @@ from .models import Team
 
 
 class CreateTeamSerializer(serializers.ModelSerializer):
+    members = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        help_text="List of user IDs to add as team members"
+    )
+    
     class Meta:
         model = Team
         fields = ['name', 'members']
@@ -31,7 +37,10 @@ class CreateTeamSerializer(serializers.ModelSerializer):
             name=validated_data['name'],
             organizer=user
         )
-        team.members.set(validated_data['members'])
+        # Ensure members are User objects, not IDs
+        member_ids = validated_data['members']
+        members = User.objects.filter(id__in=member_ids)
+        team.members.set(members)
         return team
 
 
@@ -59,13 +68,14 @@ class TeamSerializer(serializers.ModelSerializer):
         return [{'id': hackathon.id, 'title': hackathon.title} for hackathon in obj.hackathons.all()]
 
     def get_projects(self, obj):
-        return [{'id': project.id, 'title': project.title} for project in obj.projects.all()]
+        return [{'id': project.id, 'title': project.title} for project in obj.get_projects()]
     
     def get_submissions(self, obj):
-        return [{'id': submission.id, 'project_title': submission.project.title} for submission in obj.submissions.all()]
+        return [{'id': submission.id, 'project_title': submission.project.title if submission.project else None} for submission in obj.get_submissions()]
     
     def get_prizes(self, obj):
-        return [{'id': prize.id, 'name': prize.name, 'amount': prize.amount} for prize in obj.prizes.all()]
+        # Since there's no Prize model related to Team, return empty list
+        return []
 
 
 class UpdateTeamSerializer(serializers.ModelSerializer):
@@ -153,6 +163,11 @@ class RemoveMemberSerializer(serializers.Serializer):
 
 class CreateHackathonTeamSerializer(serializers.ModelSerializer):
     hackathon_id = serializers.IntegerField(write_only=True)
+    members = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        help_text="List of user IDs to add as team members"
+    )
 
     class Meta:
         model = Team
@@ -221,7 +236,10 @@ class CreateHackathonTeamSerializer(serializers.ModelSerializer):
             name=validated_data['name'],
             organizer=user
         )
-        team.members.set(validated_data['members'])
+        # Ensure members are User objects, not IDs
+        member_ids = validated_data['members']
+        members = User.objects.filter(id__in=member_ids)
+        team.members.set(members)
         
         # Register team for hackathon
         team.hackathons.add(hackathon)
@@ -232,5 +250,12 @@ class CreateHackathonTeamSerializer(serializers.ModelSerializer):
             participant.team = team
             participant.looking_for_team = False
             participant.save()
+        
+        # Also update the organizer's participant record if they're not already in members
+        organizer_participant = HackathonParticipant.objects.get(hackathon=hackathon, user=user)
+        if organizer_participant.team != team:
+            organizer_participant.team = team
+            organizer_participant.looking_for_team = False
+            organizer_participant.save()
         
         return team

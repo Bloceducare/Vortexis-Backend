@@ -100,14 +100,21 @@ class CreateSubmissionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Submission
-        fields = ['project', 'status']
+        fields = ['project']
 
     def validate_project(self, value):
         from project.models import Project
         request = self.context.get('request')
         user = request.user
+        
+        # Ensure value is an integer ID
+        if isinstance(value, Project):
+            project_id = value.id
+        else:
+            project_id = int(value)
+            
         try:
-            project = Project.objects.get(id=value)
+            project = Project.objects.get(id=project_id)
         except Project.DoesNotExist:
             raise serializers.ValidationError("Project does not exist.")
         
@@ -115,16 +122,18 @@ class CreateSubmissionSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("You are not a member of this project's team.")
         if Submission.objects.filter(project=project, hackathon=self.context.get('hackathon')).exists():
             raise serializers.ValidationError("This project is already submitted to this hackathon.")
-        return value
+        return project_id
 
     def create(self, validated_data):
         from project.models import Project
         hackathon = self.context.get('hackathon')
-        project = Project.objects.get(id=validated_data['project'])
+        project_id = validated_data['project']
+        project = Project.objects.get(id=project_id)
         return Submission.objects.create(
             project=project,
             hackathon=hackathon,
-            team=project.team
+            team=project.team,
+            status='pending'  # Explicitly set to pending
         )
 
 

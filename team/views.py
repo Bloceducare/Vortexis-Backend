@@ -83,7 +83,7 @@ class CreateHackathonTeamView(GenericAPIView):
         # Send email notifications to all team members
         send_mail(
             subject=f"Team Created for {hackathon.title}",
-            message=f"Dear Team,\n\nA new team '{team.name}' has been created for '{hackathon.title}'.\nTeam Organizer: {team.organizer.get_full_name()}\nMembers: {', '.join([member.get_full_name() for member in team.members.all()])}\n\nGood luck with the hackathon!",
+            message=f"Dear Team,\n\nA new team '{team.name}' has been created for '{hackathon.title}'.\nTeam Organizer: {team.organizer.get_full_name if team.organizer else 'Unknown'}\nMembers: {', '.join([member.get_full_name for member in team.members.all()])}\n\nGood luck with the hackathon!",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[member.email for member in team.members.all()],
             fail_silently=True

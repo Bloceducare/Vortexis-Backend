@@ -13,15 +13,14 @@ class Team(models.Model):
     def __str__(self):
         return self.name
     
-    @property
-    def projects(self):
+    def get_projects(self):
         return self.projects.all()
     
-    @property
-    def submissions(self):
+    def get_submissions(self):
         return self.submissions.all()
     
-    @property
-    def prizes(self):
-        return self.prizes.all()
+    def get_prizes(self):
+        # Return empty queryset since there's no Prize model related to Team
+        from django.db.models import QuerySet
+        return QuerySet().none()
     

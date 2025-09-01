@@ -366,9 +366,17 @@ class SubmissionViewSet(ModelViewSet):
             return Submission.objects.filter(hackathon_id=hackathon_id)
         return Submission.objects.filter(hackathon_id=hackathon_id, team__members=self.request.user)
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        hackathon_id = self.kwargs.get('hackathon_id')
+        if hackathon_id:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+            context['hackathon'] = hackathon
+        return context
+
     def perform_create(self, serializer):
         hackathon = Hackathon.objects.get(id=self.kwargs['hackathon_id'])
-        serializer.save(hackathon=hackathon)
+        serializer.save()
         # Send email notification for submission
         submission = serializer.instance
         send_mail(
