@@ -10,6 +10,7 @@ from django.conf import settings
 from .serializers import CreateTeamSerializer, TeamSerializer, UpdateTeamSerializer, AddMemberSerializer, RemoveMemberSerializer, CreateHackathonTeamSerializer
 from .models import Team
 from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 # Create your views here.
 
@@ -55,6 +56,40 @@ class TeamViewSet(ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response({'team': TeamSerializer(team).data}, status=status.HTTP_200_OK)
+    
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter(
+                'hackathon_id',
+                openapi.IN_QUERY,
+                description='The ID of the hackathon to get the user\'s team for',
+                type=openapi.TYPE_INTEGER,
+                required=True
+            )
+        ],
+        responses={
+            200: TeamSerializer,
+            400: "Bad Request - hackathon_id parameter required",
+            404: "Not Found - No team found for this hackathon"
+        },
+        operation_description="Get the team that the authenticated user is part of for a specific hackathon",
+        tags=['teams']
+    )
+    @action(detail=False, methods=['get'])
+    def by_hackathon(self, request):
+        """Get user's team for a specific hackathon"""
+        hackathon_id = request.query_params.get('hackathon_id')
+        if not hackathon_id:
+            return Response({'error': 'hackathon_id parameter required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        team = Team.objects.filter(
+            members=request.user, 
+            hackathons__id=hackathon_id
+        ).first()
+        
+        if team:
+            return Response(TeamSerializer(team).data, status=status.HTTP_200_OK)
+        return Response({'message': 'No team found for this hackathon'}, status=status.HTTP_404_NOT_FOUND)
 
 
 class CreateHackathonTeamView(GenericAPIView):

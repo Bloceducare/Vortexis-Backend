@@ -430,6 +430,24 @@ class ReviewViewSet(ModelViewSet):
         )
 
 
+class JudgeAllReviewsView(APIView):
+    permission_classes = [IsAuthenticated, IsJudge]
+
+    @swagger_auto_schema(
+        responses={
+            200: ReviewSerializer(many=True),
+            401: "Unauthorized",
+            403: "Forbidden"
+        },
+        operation_description="Get all reviews made by the authenticated judge across all hackathons.",
+        tags=['reviews']
+    )
+    def get(self, request):
+        reviews = Review.objects.filter(judge=request.user).select_related('submission__hackathon', 'submission__project', 'submission__team')
+        serializer = ReviewSerializer(reviews, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 class ThemeViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated, IsOrganizer]
     serializer_class = ThemeSerializer
