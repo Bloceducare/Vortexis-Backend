@@ -6,7 +6,7 @@ from .views import (
     SubmissionViewSet, ReviewViewSet, ThemeViewSet, SubmitProjectView, JudgeHackathonsView,
     HackathonJudgesView, HackathonParticipantsView, OrganizerHackathonsView,
     JoinTeamView, HackathonIndividualParticipantsView, AvailableTeamsView,
-    UserRegisteredHackathonsView
+    UserRegisteredHackathonsView, JudgeAllReviewsView
 
 )
 
@@ -20,6 +20,7 @@ urlpatterns = [
     path('create/', HackathonCreateView.as_view(), name='hackathon_create'),
     path('my-registrations/', UserRegisteredHackathonsView.as_view(), name='user_registered_hackathons'),
     path('judge/hackathons/', JudgeHackathonsView.as_view(), name='judge_hackathons'),
+    path('judge/reviews/', JudgeAllReviewsView.as_view(), name='judge_all_reviews'),
     path('organizer/hackathons/', OrganizerHackathonsView.as_view(), name='organizer_hackathons'),
     path('<int:hackathon_id>/', HackathonRetrieveView.as_view(), name='hackathon_retrieve'),
     path('<int:hackathon_id>/judges/', HackathonJudgesView.as_view(), name='hackathon_judges'),
