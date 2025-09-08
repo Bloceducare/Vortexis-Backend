@@ -72,7 +72,7 @@ class ProjectViewSet(ModelViewSet):
         # Find the user's team for this hackathon
         user_team = Team.objects.filter(
             members=request.user, 
-            hackathons__id=hackathon_id
+            hackathon__id=hackathon_id
         ).first()
         
         if not user_team:

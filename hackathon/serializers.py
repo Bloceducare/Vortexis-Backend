@@ -192,6 +192,28 @@ class HackathonSerializer(serializers.ModelSerializer):
         model = Hackathon
         fields = '__all__'
 
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        
+        # Only include evaluation_criteria for judges and organizers
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            user = request.user
+            # Check if user is a judge for this hackathon or organizer of the hackathon
+            is_judge = user in instance.judges.all()
+            is_organizer = (instance.organization and 
+                          (instance.organization.organizer == user or 
+                           user in instance.organization.moderators.all()))
+            
+            if not (is_judge or is_organizer):
+                data.pop('evaluation_criteria', None)
+        else:
+            # Remove evaluation_criteria for unauthenticated users
+            data.pop('evaluation_criteria', None)
+        
+        return data
+
     def get_skills(self, obj):
         return [{'id': skill.id, 'name': skill.name} for skill in obj.skills.all()]
     
@@ -228,7 +250,7 @@ class CreateHackathonSerializer(HackathonSerializer):
     banner_image_file = serializers.ImageField(write_only=True, required=False)
     
     class Meta(HackathonSerializer.Meta):
-        fields = ['title', 'description', 'banner_image', 'banner_image_file', 'visibility', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'rules', 'prizes']
+        fields = ['title', 'description', 'banner_image', 'banner_image_file', 'visibility', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'rules', 'prizes', 'evaluation_criteria']
         extra_kwargs = {
             'banner_image': {'read_only': True}
         }
@@ -275,7 +297,7 @@ class UpdateHackathonSerializer(HackathonSerializer):
     banner_image_file = serializers.ImageField(write_only=True, required=False)
     
     class Meta(HackathonSerializer.Meta):
-        fields = ['title', 'description', 'banner_image', 'banner_image_file', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'visibility', 'rules', 'prizes']
+        fields = ['title', 'description', 'banner_image', 'banner_image_file', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'visibility', 'rules', 'prizes', 'evaluation_criteria']
         extra_kwargs = {field: {'required': False} for field in fields if field != 'banner_image'}
         extra_kwargs['banner_image'] = {'read_only': True}
 
@@ -330,8 +352,10 @@ class RegisterHackathonSerializer(serializers.Serializer):
         if user not in team.members.all():
             raise serializers.ValidationError("You are not a member of this team.")
         hackathon = self.instance
-        if team in hackathon.participants.all():
-            raise serializers.ValidationError("This team is already registered for the hackathon.")
+        # Check if team belongs to this hackathon (teams are now hackathon-specific)
+        if team.hackathon != hackathon:
+            raise serializers.ValidationError("This team is not associated with this hackathon.")
+        # Since teams are now hackathon-specific, they are automatically "registered"
         if hackathon.start_date < timezone.now().date():
             raise serializers.ValidationError("Hackathon registration period has ended.")
         if team.members.count() < hackathon.min_team_size or team.members.count() > hackathon.max_team_size:
@@ -346,7 +370,7 @@ class RegisterHackathonSerializer(serializers.Serializer):
 
     def update(self, instance, validated_data):
         team = Team.objects.get(id=validated_data['team_id'])
-        instance.participants.add(team)
+        # Team is already associated with hackathon via ForeignKey, no need to add
         
         # Update participant records for all team members
         for member in team.members.all():
@@ -525,9 +549,9 @@ class JoinTeamSerializer(serializers.Serializer):
         except Team.DoesNotExist:
             raise serializers.ValidationError("Team does not exist.")
         
-        # Check if team is registered for this hackathon
-        if team not in hackathon.participants.all():
-            raise serializers.ValidationError("This team is not registered for this hackathon.")
+        # Check if team belongs to this hackathon (teams are now hackathon-specific)
+        if team.hackathon != hackathon:
+            raise serializers.ValidationError("This team does not belong to this hackathon.")
         
         # Check if team has space
         if team.members.count() >= hackathon.max_team_size:

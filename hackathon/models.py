@@ -26,6 +26,7 @@ class Hackathon(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     rules = models.TextField(blank=True, help_text="Enter hackathon rules (one per line or as formatted text)")
     prizes = models.TextField(blank=True, help_text="Enter prize information (one per line or as formatted text)")
+    evaluation_criteria = models.TextField(blank=True, help_text="Evaluation criteria for judges (only visible to judges and organizers)")
 
     def __str__(self):
         return self.title
