@@ -7,7 +7,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import GenericAPIView
 from django.core.mail import send_mail
 from django.conf import settings
-from .serializers import CreateTeamSerializer, TeamSerializer, UpdateTeamSerializer, AddMemberSerializer, RemoveMemberSerializer, CreateHackathonTeamSerializer
+from .serializers import CreateTeamSerializer, TeamSerializer, UpdateTeamSerializer, AddMemberSerializer, RemoveMemberSerializer, CreateHackathonTeamSerializer, LeaveTeamSerializer
 from .models import Team
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -56,6 +56,42 @@ class TeamViewSet(ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response({'team': TeamSerializer(team).data}, status=status.HTTP_200_OK)
+    
+    @swagger_auto_schema(
+        request_body=LeaveTeamSerializer,
+        responses={
+            200: "Successfully left the team",
+            400: "Bad Request - validation errors",
+            403: "Forbidden - not a team member or trying to leave as organizer",
+            404: "Team not found"
+        },
+        operation_description="Leave a team. Team organizers cannot leave their own team.",
+        tags=['teams']
+    )
+    @action(detail=True, methods=['post'], serializer_class=LeaveTeamSerializer)
+    def leave_team(self, request, pk=None):
+        """Leave a team"""
+        team = self.get_object()
+        serializer = LeaveTeamSerializer(team, data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        # Send notification email to team organizer and remaining members
+        remaining_members = team.members.all()
+        if remaining_members.exists():
+            recipient_emails = [member.email for member in remaining_members]
+            send_mail(
+                subject=f"Member Left Team: {team.name}",
+                message=f"Dear Team,\n\n{request.user.get_full_name or request.user.username} has left the team '{team.name}'.\n\nRemaining members: {', '.join([member.get_full_name or member.username for member in remaining_members])}\n\nTeam Organizer: {team.organizer.get_full_name or team.organizer.username if team.organizer else 'Unknown'}",
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=recipient_emails,
+                fail_silently=True
+            )
+        
+        return Response(
+            {'message': f'You have successfully left the team "{team.name}".'},
+            status=status.HTTP_200_OK
+        )
     
     @swagger_auto_schema(
         manual_parameters=[

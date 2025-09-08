@@ -7,9 +7,9 @@ from .models import Team
 
 class CreateTeamSerializer(serializers.ModelSerializer):
     members = serializers.ListField(
-        child=serializers.IntegerField(),
+        child=serializers.EmailField(),
         write_only=True,
-        help_text="List of user IDs to add as team members"
+        help_text="List of user emails to add as team members"
     )
     
     class Meta:
@@ -19,11 +19,26 @@ class CreateTeamSerializer(serializers.ModelSerializer):
     def validate(self, data):
         if not data.get('name'):
             raise serializers.ValidationError("Team name is required.")
-        if not data.get('members'):
-            raise serializers.ValidationError("At least one member is required.")
-        members = data.get('members')
-        if len(members) != len(set(members)):
-            raise serializers.ValidationError("Duplicate members are not allowed.")
+        
+        member_emails = data.get('members', [])
+        if not member_emails:
+            raise serializers.ValidationError("At least one member email is required.")
+        
+        if len(member_emails) != len(set(member_emails)):
+            raise serializers.ValidationError("Duplicate member emails are not allowed.")
+        
+        # Validate all members exist
+        member_users = []
+        for email in member_emails:
+            try:
+                member = User.objects.get(email=email)
+                member_users.append(member)
+            except User.DoesNotExist:
+                raise serializers.ValidationError(f"User with email {email} does not exist.")
+        
+        # Add the validated member users to data for use in create method
+        data['member_users'] = member_users
+        
         return data
     
     def create(self, validated_data):
@@ -32,15 +47,15 @@ class CreateTeamSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Request context is required.")
         
         user = request.user
+        member_users = validated_data.pop('member_users')  # Get the validated User objects
         
         team = Team.objects.create(
             name=validated_data['name'],
             organizer=user
         )
-        # Ensure members are User objects, not IDs
-        member_ids = validated_data['members']
-        members = User.objects.filter(id__in=member_ids)
-        team.members.set(members)
+        
+        # Add members to team using the validated User objects
+        team.members.set(member_users)
         return team
 
 
@@ -103,9 +118,9 @@ class UpdateTeamSerializer(serializers.ModelSerializer):
 
 
 class AddMemberSerializer(serializers.Serializer):
-    member_id = serializers.IntegerField()
+    member_email = serializers.EmailField()
 
-    def validate_member_id(self, value):
+    def validate_member_email(self, value):
         request = self.context.get('request')
         if not request:
             raise serializers.ValidationError("Request context is required.")
@@ -115,9 +130,9 @@ class AddMemberSerializer(serializers.Serializer):
             raise AuthenticationFailed("You are not authorized to add members to this team.")
         
         try:
-            member = User.objects.get(id=value)
+            member = User.objects.get(email=value)
         except User.DoesNotExist:
-            raise serializers.ValidationError("User does not exist.")
+            raise serializers.ValidationError("User with this email does not exist.")
         
         if member in team.members.all():
             raise serializers.ValidationError("User is already a member of this team.")
@@ -125,15 +140,15 @@ class AddMemberSerializer(serializers.Serializer):
         return value
     
     def save(self):
-        member = User.objects.get(id=self.validated_data['member_id'])
+        member = User.objects.get(email=self.validated_data['member_email'])
         self.instance.members.add(member)
         return self.instance
 
 
 class RemoveMemberSerializer(serializers.Serializer):
-    member_id = serializers.IntegerField()
+    member_email = serializers.EmailField()
 
-    def validate_member_id(self, value):
+    def validate_member_email(self, value):
         request = self.context.get('request')
         if not request:
             raise serializers.ValidationError("Request context is required.")
@@ -143,9 +158,9 @@ class RemoveMemberSerializer(serializers.Serializer):
             raise AuthenticationFailed("You are not authorized to remove members from this team.")
         
         try:
-            member = User.objects.get(id=value)
+            member = User.objects.get(email=value)
         except User.DoesNotExist:
-            raise serializers.ValidationError("User does not exist.")
+            raise serializers.ValidationError("User with this email does not exist.")
         
         if member not in team.members.all():
             raise serializers.ValidationError("User is not a member of this team.")
@@ -156,17 +171,59 @@ class RemoveMemberSerializer(serializers.Serializer):
         return value
     
     def save(self):
-        member = User.objects.get(id=self.validated_data['member_id'])
+        member = User.objects.get(email=self.validated_data['member_email'])
         self.instance.members.remove(member)
         return self.instance
+
+
+class LeaveTeamSerializer(serializers.Serializer):
+    """Serializer for users to leave a team"""
+    
+    def validate(self, data):
+        request = self.context.get('request')
+        if not request:
+            raise serializers.ValidationError("Request context is required.")
+        
+        user = request.user
+        team = self.instance
+        
+        if user not in team.members.all():
+            raise serializers.ValidationError("You are not a member of this team.")
+        
+        if user == team.organizer:
+            raise serializers.ValidationError("Team organizers cannot leave their own team. Transfer ownership or delete the team instead.")
+        
+        return data
+    
+    def save(self):
+        user = self.context.get('request').user
+        team = self.instance
+        
+        # Remove user from team
+        team.members.remove(user)
+        
+        # Update hackathon participant records if team is registered for hackathons
+        from hackathon.models import HackathonParticipant
+        
+        for hackathon in team.hackathons.all():
+            try:
+                participant = HackathonParticipant.objects.get(hackathon=hackathon, user=user)
+                participant.team = None
+                participant.looking_for_team = True
+                participant.save()
+            except HackathonParticipant.DoesNotExist:
+                # User might not be registered for this hackathon, skip
+                continue
+        
+        return team
 
 
 class CreateHackathonTeamSerializer(serializers.ModelSerializer):
     hackathon_id = serializers.IntegerField(write_only=True)
     members = serializers.ListField(
-        child=serializers.IntegerField(),
+        child=serializers.EmailField(),
         write_only=True,
-        help_text="List of user IDs to add as team members"
+        help_text="List of user emails to add as team members"
     )
 
     class Meta:
@@ -186,12 +243,12 @@ class CreateHackathonTeamSerializer(serializers.ModelSerializer):
         if not data.get('name'):
             raise serializers.ValidationError("Team name is required.")
             
-        members = data.get('members', [])
-        if not members:
-            raise serializers.ValidationError("At least one member is required.")
+        member_emails = data.get('members', [])
+        if not member_emails:
+            raise serializers.ValidationError("At least one member email is required.")
             
-        if len(members) != len(set(members)):
-            raise serializers.ValidationError("Duplicate members are not allowed.")
+        if len(member_emails) != len(set(member_emails)):
+            raise serializers.ValidationError("Duplicate member emails are not allowed.")
         
         # Validate hackathon exists
         try:
@@ -203,21 +260,26 @@ class CreateHackathonTeamSerializer(serializers.ModelSerializer):
         if not HackathonParticipant.objects.filter(hackathon=hackathon, user=user).exists():
             raise serializers.ValidationError("You must be registered for this hackathon to create a team.")
         
-        # Check if all members are registered for the hackathon
-        for member_id in members:
+        # Check if all members exist and are registered for the hackathon
+        member_users = []
+        for email in member_emails:
             try:
-                member = User.objects.get(id=member_id)
+                member = User.objects.get(email=email)
+                member_users.append(member)
                 if not HackathonParticipant.objects.filter(hackathon=hackathon, user=member).exists():
-                    raise serializers.ValidationError(f"User {member.username} is not registered for this hackathon.")
+                    raise serializers.ValidationError(f"User with email {email} is not registered for this hackathon.")
                 # Check if member already has a team for this hackathon
                 participant = HackathonParticipant.objects.get(hackathon=hackathon, user=member)
                 if participant.has_team:
-                    raise serializers.ValidationError(f"User {member.username} is already part of a team for this hackathon.")
+                    raise serializers.ValidationError(f"User with email {email} is already part of a team for this hackathon.")
             except User.DoesNotExist:
-                raise serializers.ValidationError(f"User with id {member_id} does not exist.")
+                raise serializers.ValidationError(f"User with email {email} does not exist.")
+        
+        # Add the validated member users to data for use in create method
+        data['member_users'] = member_users
         
         # Check team size constraints
-        team_size = len(members)
+        team_size = len(member_emails)
         if team_size < hackathon.min_team_size or team_size > hackathon.max_team_size:
             raise serializers.ValidationError(f"Team size must be between {hackathon.min_team_size} and {hackathon.max_team_size} members.")
         
@@ -227,6 +289,9 @@ class CreateHackathonTeamSerializer(serializers.ModelSerializer):
         from hackathon.models import Hackathon, HackathonParticipant
         
         hackathon_id = validated_data.pop('hackathon_id')
+        member_users = validated_data.pop('member_users')  # Get the validated User objects
+        validated_data.pop('members')  # Remove the emails list since we have User objects
+        
         hackathon = Hackathon.objects.get(id=hackathon_id)
         request = self.context.get('request')
         user = request.user
@@ -236,10 +301,9 @@ class CreateHackathonTeamSerializer(serializers.ModelSerializer):
             name=validated_data['name'],
             organizer=user
         )
-        # Ensure members are User objects, not IDs
-        member_ids = validated_data['members']
-        members = User.objects.filter(id__in=member_ids)
-        team.members.set(members)
+        
+        # Add members to team using the validated User objects
+        team.members.set(member_users)
         
         # Register team for hackathon
         team.hackathons.add(hackathon)

@@ -2,7 +2,6 @@ from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from django.utils import timezone
 from team.models import Team
-from team.serializers import TeamSerializer
 from .models import Hackathon, Theme, Submission, Review, HackathonParticipant
 from accounts.models import User
 from utils.cloudinary_utils import upload_image_to_cloudinary
@@ -182,16 +181,47 @@ class ReviewSerializer(serializers.ModelSerializer):
 
 
 class HackathonSerializer(serializers.ModelSerializer):
-    participants = serializers.SerializerMethodField()
     themes = ThemeSerializer(many=True, read_only=True)
-    submissions = SubmissionSerializer(many=True, read_only=True)
+    skills = serializers.SerializerMethodField()
+    organization = serializers.SerializerMethodField()
+    judges = serializers.SerializerMethodField()
+    participants_count = serializers.SerializerMethodField()
+    submissions_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Hackathon
         fields = '__all__'
 
-    def get_participants(self, obj):
-        return TeamSerializer(obj.participants.all(), many=True).data
+    def get_skills(self, obj):
+        return [{'id': skill.id, 'name': skill.name} for skill in obj.skills.all()]
+    
+    def get_organization(self, obj):
+        if obj.organization:
+            return {
+                'id': obj.organization.id,
+                'name': obj.organization.name,
+                'description': obj.organization.description,
+                'is_approved': obj.organization.is_approved
+            }
+        return None
+    
+    def get_judges(self, obj):
+        return [
+            {
+                'id': judge.id,
+                'username': judge.username,
+                'first_name': judge.first_name,
+                'last_name': judge.last_name,
+                'email': judge.email
+            }
+            for judge in obj.judges.all()
+        ]
+    
+    def get_participants_count(self, obj):
+        return obj.participants.count()
+    
+    def get_submissions_count(self, obj):
+        return obj.submissions.count()
 
 
 class CreateHackathonSerializer(HackathonSerializer):
