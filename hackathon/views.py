@@ -55,7 +55,7 @@ class HackathonCreateView(GenericAPIView):
         # Send email notification to organizer
         send_mail(
             subject="Hackathon Created Successfully",
-            message=f"Dear {request.user.get_full_name},\n\nYour hackathon '{hackathon.title}' has been created successfully.\nDetails: {hackathon.description}\nVenue: {hackathon.venue}\nStart Date: {hackathon.start_date}\nEnd Date: {hackathon.end_date}",
+            message=f"Dear {(request.user.first_name + ' ' + request.user.last_name).strip() or request.user.username},\n\nYour hackathon '{hackathon.title}' has been created successfully.\nDetails: {hackathon.description}\nVenue: {hackathon.venue}\nStart Date: {hackathon.start_date}\nEnd Date: {hackathon.end_date}",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[request.user.email],
             fail_silently=True
@@ -137,7 +137,7 @@ class HackathonRetrieveView(RetrieveUpdateDestroyAPIView):
         # Send email notification to organizer
         send_mail(
             subject="Hackathon Deleted",
-            message=f"Dear {request.user.get_full_name},\n\nYour hackathon '{hackathon.title}' has been deleted.",
+            message=f"Dear {(request.user.first_name + ' ' + request.user.last_name).strip() or request.user.username},\n\nYour hackathon '{hackathon.title}' has been deleted.",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[request.user.email],
             fail_silently=True
@@ -182,7 +182,7 @@ class HackathonRegistrationView(APIView):
         # Send email notification
         send_mail(
             subject="Hackathon Registration Successful",
-            message=f"Dear {request.user.get_full_name},\n\nYou have been successfully registered for '{hackathon.title}'.\nYou can now join existing teams or create a new team.\nStart Date: {hackathon.start_date}\nEnd Date: {hackathon.end_date}",
+            message=f"Dear {(request.user.first_name + ' ' + request.user.last_name).strip() or request.user.username},\n\nYou have been successfully registered for '{hackathon.title}'.\nYou can now join existing teams or create a new team.\nStart Date: {hackathon.start_date}\nEnd Date: {hackathon.end_date}",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[request.user.email],
             fail_silently=True
@@ -335,7 +335,7 @@ class SubmitProjectView(GenericAPIView):
         # Send email notification to team members
         send_mail(
             subject="Project Submission Successful",
-            message=f"Dear {request.user.get_full_name},\n\nYour project '{project.title}' has been submitted to '{submission.hackathon.title}'.\nSubmission ID: {submission.id}",
+            message=f"Dear {(request.user.first_name + ' ' + request.user.last_name).strip() or request.user.username},\n\nYour project '{project.title}' has been submitted to '{submission.hackathon.title}'.\nSubmission ID: {submission.id}",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[member.email for member in project.team.members.all()],
             fail_silently=True
@@ -381,7 +381,7 @@ class SubmissionViewSet(ModelViewSet):
         submission = serializer.instance
         send_mail(
             subject="New Submission Received",
-            message=f"Dear {hackathon.organization.organizer.get_full_name},\n\nA new submission for '{hackathon.title}' has been received.\nProject: {submission.project.title}\nTeam: {submission.team.name}",
+            message=f"Dear {(hackathon.organization.organizer.first_name + ' ' + hackathon.organization.organizer.last_name).strip() or hackathon.organization.organizer.username},\n\nA new submission for '{hackathon.title}' has been received.\nProject: {submission.project.title}\nTeam: {submission.team.name}",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[hackathon.organization.organizer.email],
             fail_silently=True
@@ -393,7 +393,7 @@ class SubmissionViewSet(ModelViewSet):
             # Send email notification for approval
             send_mail(
                 subject="Submission Approved",
-                message=f"Dear {submission.team.members.first().get_full_name},\n\nYour submission '{submission.project.title}' for '{submission.hackathon.title}' has been approved.",
+                message=f"Dear {(submission.team.members.first().first_name + ' ' + submission.team.members.first().last_name).strip() or submission.team.members.first().username},\n\nYour submission '{submission.project.title}' for '{submission.hackathon.title}' has been approved.",
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[member.email for member in submission.team.members.all()],
                 fail_silently=True
@@ -423,7 +423,7 @@ class ReviewViewSet(ModelViewSet):
         # Send email notification to submission team
         send_mail(
             subject="New Review for Your Submission",
-            message=f"Dear {review.submission.team.members.first().get_full_name},\n\nYour submission '{review.submission.project.title}' for '{review.submission.hackathon.title}' has received a new review.\nScore: {review.overall_score}\nComments: {review.review or 'No comments provided'}",
+            message=f"Dear {(review.submission.team.members.first().first_name + ' ' + review.submission.team.members.first().last_name).strip() or review.submission.team.members.first().username},\n\nYour submission '{review.submission.project.title}' for '{review.submission.hackathon.title}' has received a new review.\nScore: {review.overall_score}\nComments: {review.review or 'No comments provided'}",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[member.email for member in review.submission.team.members.all()],
             fail_silently=True
@@ -581,7 +581,7 @@ class JoinTeamView(GenericAPIView):
         # Send email notification to user and team members
         send_mail(
             subject=f"Joined Team for {hackathon.title}",
-            message=f"Dear {request.user.get_full_name()},\n\nYou have successfully joined team '{team.name}' for '{hackathon.title}'.",
+            message=f"Dear {(request.user.first_name + ' ' + request.user.last_name).strip() or request.user.username},\n\nYou have successfully joined team '{team.name}' for '{hackathon.title}'.",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[request.user.email],
             fail_silently=True
@@ -592,7 +592,7 @@ class JoinTeamView(GenericAPIView):
         if other_members.exists():
             send_mail(
                 subject=f"New Team Member Joined - {hackathon.title}",
-                message=f"Dear Team,\n\n{request.user.get_full_name()} has joined your team '{team.name}' for '{hackathon.title}'.",
+                message=f"Dear Team,\n\n{(request.user.first_name + ' ' + request.user.last_name).strip() or request.user.username} has joined your team '{team.name}' for '{hackathon.title}'.",
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[member.email for member in other_members],
                 fail_silently=True
