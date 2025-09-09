@@ -46,7 +46,7 @@ def login_social_user(username):
     return {
             'username': login_user.username,
             'email': login_user.email,
-            'full_name': login_user.get_full_name,
+            'full_name': (login_user.first_name + ' ' + login_user.last_name).strip() or login_user.username,
             'access_token': str(user_tokens['access']),
             'refresh_token': str(user_tokens['refresh'])
         }

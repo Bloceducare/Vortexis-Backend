@@ -7,7 +7,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import GenericAPIView
 from django.core.mail import send_mail
 from django.conf import settings
-from .serializers import CreateTeamSerializer, TeamSerializer, UpdateTeamSerializer, AddMemberSerializer, RemoveMemberSerializer, CreateHackathonTeamSerializer, LeaveTeamSerializer
+from .serializers import CreateTeamSerializer, TeamSerializer, UpdateTeamSerializer, AddMemberSerializer, RemoveMemberSerializer, LeaveTeamSerializer, AcceptTeamInvitationSerializer, TeamInvitationSerializer
 from .models import Team
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -32,22 +32,72 @@ class TeamViewSet(ModelViewSet):
         return Team.objects.filter(members=self.request.user).distinct()
     
     def perform_create(self, serializer):
-        serializer.save()
+        team = serializer.save()
+        
+        # Send email notifications to all team members
+        send_mail(
+            subject=f"Team Created for {team.hackathon.title}",
+            message=f"Dear Team,\n\nA new team '{team.name}' has been created for '{team.hackathon.title}'.\nTeam Organizer: {((team.organizer.first_name + ' ' + team.organizer.last_name).strip() or team.organizer.username) if team.organizer else 'Unknown'}\nMembers: {', '.join([((member.first_name + ' ' + member.last_name).strip() or member.username) for member in team.members.all()])}\n\nGood luck with the hackathon!",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[member.email for member in team.members.all()],
+            fail_silently=True
+        )
     
     def perform_destroy(self, instance):
         if instance.organizer != self.request.user:
             raise PermissionDenied("You are not authorized to delete this team.")
+        
+        # Update participant records before deleting team
+        from hackathon.models import HackathonParticipant
+        for member in instance.members.all():
+            try:
+                participant = HackathonParticipant.objects.get(
+                    hackathon=instance.hackathon, 
+                    user=member
+                )
+                participant.team = None
+                participant.looking_for_team = True
+                participant.save()
+            except HackathonParticipant.DoesNotExist:
+                pass
+        
         instance.delete()
     
+    @swagger_auto_schema(
+        request_body=AddMemberSerializer,
+        responses={
+            200: TeamSerializer,
+            400: "Bad Request - validation errors",
+            403: "Forbidden - not the team organizer", 
+            404: "Team not found"
+        },
+        operation_description="Add a member to the team by email. Only team organizers can add members.",
+        tags=['teams']
+    )
     @action(detail=True, methods=['post'], serializer_class=AddMemberSerializer)
     def add_member(self, request, pk=None):
-        """Add a member to the team"""
+        """Send invitation to join the team"""
         team = self.get_object()
         serializer = AddMemberSerializer(team, data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response({'team': TeamSerializer(team).data}, status=status.HTTP_200_OK)
+        result = serializer.save()
+        return Response({
+            'message': result['message'],
+            'user_exists': result['user_exists'],
+            'invitation_id': result['invitation'].id
+        }, status=status.HTTP_200_OK)
     
+    @swagger_auto_schema(
+        request_body=RemoveMemberSerializer,
+        responses={
+            200: TeamSerializer,
+            400: "Bad Request - validation errors",
+            403: "Forbidden - not the team organizer",
+            404: "Team not found"
+        },
+        operation_description="Remove a member from the team by email. Only team organizers can remove members.",
+        tags=['teams']
+    )
     @action(detail=True, methods=['post'], serializer_class=RemoveMemberSerializer)
     def remove_member(self, request, pk=None):
         """Remove a member from the team"""
@@ -82,7 +132,7 @@ class TeamViewSet(ModelViewSet):
             recipient_emails = [member.email for member in remaining_members]
             send_mail(
                 subject=f"Member Left Team: {team.name}",
-                message=f"Dear Team,\n\n{request.user.get_full_name or request.user.username} has left the team '{team.name}'.\n\nRemaining members: {', '.join([member.get_full_name or member.username for member in remaining_members])}\n\nTeam Organizer: {team.organizer.get_full_name or team.organizer.username if team.organizer else 'Unknown'}",
+                message=f"Dear Team,\n\n{(request.user.first_name + ' ' + request.user.last_name).strip() or request.user.username} has left the team '{team.name}'.\n\nRemaining members: {', '.join([((member.first_name + ' ' + member.last_name).strip() or member.username) for member in remaining_members])}\n\nTeam Organizer: {((team.organizer.first_name + ' ' + team.organizer.last_name).strip() or team.organizer.username) if team.organizer else 'Unknown'}",
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=recipient_emails,
                 fail_silently=True
@@ -118,49 +168,38 @@ class TeamViewSet(ModelViewSet):
         if not hackathon_id:
             return Response({'error': 'hackathon_id parameter required'}, status=status.HTTP_400_BAD_REQUEST)
         
+        try:
+            hackathon_id = int(hackathon_id)
+        except ValueError:
+            return Response({'error': 'Invalid hackathon_id'}, status=status.HTTP_400_BAD_REQUEST)
+        
         team = Team.objects.filter(
             members=request.user, 
-            hackathons__id=hackathon_id
+            hackathon_id=hackathon_id
         ).first()
         
         if team:
             return Response(TeamSerializer(team).data, status=status.HTTP_200_OK)
         return Response({'message': 'No team found for this hackathon'}, status=status.HTTP_404_NOT_FOUND)
-
-
-class CreateHackathonTeamView(GenericAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = CreateHackathonTeamSerializer
-
+    
     @swagger_auto_schema(
-        request_body=CreateHackathonTeamSerializer,
+        request_body=AcceptTeamInvitationSerializer,
         responses={
-            201: TeamSerializer,
-            400: "Bad Request",
-            401: "Unauthorized"
+            200: "Successfully joined team",
+            400: "Bad Request - invalid or expired token",
+            404: "Invitation not found"
         },
-        operation_description="Create a new team for a specific hackathon (all members must be registered for the hackathon).",
+        operation_description="Accept a team invitation using the invitation token",
         tags=['teams']
     )
-    def post(self, request):
-        serializer = self.serializer_class(data=request.data, context={'request': request})
+    @action(detail=False, methods=['post'])
+    def accept_invitation(self, request):
+        """Accept a team invitation"""
+        serializer = AcceptTeamInvitationSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        team = serializer.save()
-        
-        hackathon_id = request.data.get('hackathon_id')
-        from hackathon.models import Hackathon
-        hackathon = Hackathon.objects.get(id=hackathon_id)
-        
-        # Send email notifications to all team members
-        send_mail(
-            subject=f"Team Created for {hackathon.title}",
-            message=f"Dear Team,\n\nA new team '{team.name}' has been created for '{hackathon.title}'.\nTeam Organizer: {team.organizer.get_full_name if team.organizer else 'Unknown'}\nMembers: {', '.join([member.get_full_name for member in team.members.all()])}\n\nGood luck with the hackathon!",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[member.email for member in team.members.all()],
-            fail_silently=True
-        )
-        
-        return Response(
-            {"message": "Team created successfully for hackathon.", "team": TeamSerializer(team).data},
-            status=status.HTTP_201_CREATED
-        )
+        result = serializer.save()
+        return Response({
+            'message': result['message'],
+            'team': TeamSerializer(result['team']).data
+        }, status=status.HTTP_200_OK)
+
