@@ -55,6 +55,8 @@ INSTALLED_APPS = [
     'organization',
     'team',
     'project',
+    'communications',
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -87,6 +89,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'vortexis_backend.wsgi.application'
+ASGI_APPLICATION = 'vortexis_backend.asgi.application'
 
 # CORS Configuration
 CORS_ALLOW_ALL_ORIGINS = True
@@ -218,3 +221,10 @@ SWAGGER_SETTINGS = {
     },
 }
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
+
+# Channels
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}

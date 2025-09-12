@@ -1,0 +1,12 @@
+from django.apps import AppConfig
+
+
+class CommunicationsConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'communications'
+
+    def ready(self) -> None:
+        # Import signal handlers
+        from . import signals  # noqa: F401
+        return super().ready()
+
