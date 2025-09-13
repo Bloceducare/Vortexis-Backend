@@ -10,6 +10,7 @@ django-filter==25.1
 djangorestframework==3.15.2
 djangorestframework_simplejwt==5.5.0
 drf-yasg==1.21.9
+drf-nested-routers==0.94.1
 google-api-core==2.24.1
 google-api-python-client==2.163.0
 google-auth==2.38.0
@@ -38,3 +39,5 @@ sqlparse==0.5.3
 uritemplate==4.1.1
 urllib3==2.3.0
 gunicorn
+channels==4.1.0
+daphne==4.1.2
