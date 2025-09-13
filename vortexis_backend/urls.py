@@ -42,10 +42,12 @@ urlpatterns = [
     path(f'api/v1/organization/', include('organization.urls'), name='organization'),
     path(f'api/v1/hackathon/', include('hackathon.urls'), name='hackathon'),
     path(f'api/v1/team/', include('team.urls'), name='team'),
-    path(f'api/v1/project/', include('project.urls'), name='project')
+    path(f'api/v1/project/', include('project.urls'), name='project'),
+    path('api/v1/communications/', include('communications.urls'), name='communications')
 ]
 
 # Serve media files in development
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
