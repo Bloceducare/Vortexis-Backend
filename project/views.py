@@ -14,6 +14,20 @@ from .models import Project
 class ProjectViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
     
+    @swagger_auto_schema(
+        operation_description="List projects. If accessed via hackathon endpoint (/hackathons/{id}/projects/), returns projects for that hackathon only.",
+        tags=['projects']
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+    
+    @swagger_auto_schema(
+        operation_description="Create a project. If accessed via hackathon endpoint (/hackathons/{id}/projects/), automatically associates with that hackathon.",
+        tags=['projects']
+    )
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+    
     def get_serializer_class(self):
         if self.action == 'create':
             return CreateProjectSerializer
@@ -24,78 +38,25 @@ class ProjectViewSet(ModelViewSet):
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return Project.objects.none()
+        
+        hackathon_id = self.kwargs.get('hackathon_id')
+        if hackathon_id:
+            # Filter by hackathon and user's teams
+            return Project.objects.filter(
+                hackathon_id=hackathon_id,
+                team__members=self.request.user
+            )
+        
+        # Return all projects for user's teams
         return Project.objects.filter(team__members=self.request.user)
     
     def perform_create(self, serializer):
-        serializer.save()
-    
-    @swagger_auto_schema(
-        manual_parameters=[
-            openapi.Parameter(
-                'hackathon_id',
-                openapi.IN_QUERY,
-                description='The ID of the hackathon to get the user\'s project for',
-                type=openapi.TYPE_INTEGER,
-                required=True
-            )
-        ],
-        responses={
-            200: ProjectSerializer,
-            400: "Bad Request - hackathon_id parameter required",
-            404: "Not Found - No project found for this hackathon"
-        },
-        operation_description="Get the project that the authenticated user's team submitted to a specific hackathon",
-        tags=['projects']
-    )
-    @action(detail=False, methods=['get'])
-    def by_hackathon(self, request):
-        """Get user's team project for a specific hackathon"""
-        from hackathon.models import Hackathon, Submission
-        from team.models import Team
-        
-        hackathon_id = request.query_params.get('hackathon_id')
-        if not hackathon_id:
-            return Response(
-                {'error': 'hackathon_id parameter is required'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            hackathon_id = int(hackathon_id)
+        hackathon_id = self.kwargs.get('hackathon_id')
+        if hackathon_id:
+            # When creating via hackathon-specific endpoint, set hackathon automatically
+            from hackathon.models import Hackathon
             hackathon = Hackathon.objects.get(id=hackathon_id)
-        except (ValueError, Hackathon.DoesNotExist):
-            return Response(
-                {'error': 'Invalid hackathon_id or hackathon does not exist'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Find the user's team for this hackathon
-        user_team = Team.objects.filter(
-            members=request.user, 
-            hackathon__id=hackathon_id
-        ).first()
-        
-        if not user_team:
-            return Response(
-                {'error': 'You are not part of any team registered for this hackathon'}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        # Find the submission (and thus project) for this team and hackathon
-        try:
-            submission = Submission.objects.get(
-                hackathon=hackathon,
-                team=user_team
-            )
-            project = submission.project
-            
-            return Response(
-                ProjectSerializer(project).data, 
-                status=status.HTTP_200_OK
-            )
-            
-        except Submission.DoesNotExist:
-            return Response(
-                {'error': 'No project has been submitted by your team for this hackathon'}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
+            serializer.save(hackathon=hackathon)
+        else:
+            serializer.save()
+    

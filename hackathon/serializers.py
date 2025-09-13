@@ -40,7 +40,9 @@ class SubmitProjectSerializer(serializers.Serializer):
         
         if Submission.objects.filter(project=project, hackathon=hackathon).exists():
             raise serializers.ValidationError("This project is already submitted to this hackathon.")
-        if project.team not in hackathon.teams.all():
+        if project.hackathon != hackathon:
+            raise serializers.ValidationError("This project does not belong to this hackathon.")
+        if project.team.hackathon != hackathon:
             raise serializers.ValidationError("Your team is not registered for this hackathon.")
         if hackathon.submission_deadline < timezone.now():
             raise serializers.ValidationError("Hackathon submission period has ended.")
@@ -119,7 +121,12 @@ class CreateSubmissionSerializer(serializers.ModelSerializer):
         
         if project.team not in user.teams.all():
             raise serializers.ValidationError("You are not a member of this project's team.")
-        if Submission.objects.filter(project=project, hackathon=self.context.get('hackathon')).exists():
+        
+        hackathon = self.context.get('hackathon')
+        if project.hackathon != hackathon:
+            raise serializers.ValidationError("This project does not belong to this hackathon.")
+        
+        if Submission.objects.filter(project=project, hackathon=hackathon).exists():
             raise serializers.ValidationError("This project is already submitted to this hackathon.")
         return project_id
 
