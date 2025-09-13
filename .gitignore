@@ -8,3 +8,4 @@ __pycache__/
 *.log
 migrations/
 */migrations/
+populate_hackathons.py
