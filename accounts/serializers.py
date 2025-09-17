@@ -120,8 +120,6 @@ class UserSerializer:
             user = authenticate(username=data['username'], password=data['password'], request=self.context.get('request'))
             if not user:
                 raise AuthenticationFailed("Incorrect credentials.")
-            if user.auth_provider != 'email':
-                raise AuthenticationFailed(f"Please continue your login with {user.auth_provider} to access your account.")
             if not user.is_verified:
                 raise AuthenticationFailed("Email is not verified.")
             user_tokens = user.tokens()
@@ -219,8 +217,7 @@ class UserSerializer:
         def validate_email(self, value):
             try:
                 user = User.objects.get(email=value)
-                if user.auth_provider != 'email':
-                    raise serializers.ValidationError(f"Password reset is not available for {user.auth_provider} accounts.")
+                # Allow password reset for all users regardless of original auth_provider
                 return value
             except User.DoesNotExist:
                 raise serializers.ValidationError("User with this email does not exist.")
