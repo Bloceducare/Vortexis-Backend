@@ -11,7 +11,9 @@ class CreateTeamSerializer(serializers.ModelSerializer):
     members = serializers.ListField(
         child=serializers.EmailField(),
         write_only=True,
-        help_text="List of user emails to add as team members"
+        required=False,
+        allow_empty=True,
+        help_text="List of user emails to invite as team members. Can be empty - team creator is automatically added."
     )
     
     class Meta:
@@ -46,18 +48,22 @@ class CreateTeamSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("You must be registered for this hackathon to create a team.")
             
         member_emails = data.get('members', [])
-        if not member_emails:
-            raise serializers.ValidationError("At least one member email is required.")
-        
+
+        # Remove creator's email from members list if they included themselves
+        if user.email in member_emails:
+            member_emails.remove(user.email)
+
         if len(member_emails) != len(set(member_emails)):
             raise serializers.ValidationError("Duplicate member emails are not allowed.")
-        
-        # Check if all members are registered for the hackathon
-        member_users = []
+
+        # All member emails will receive invitations (no auto-adding)
+        invitation_emails = member_emails.copy()
+
+        # For existing users, validate they can join teams but don't auto-add them
         for email in member_emails:
             try:
                 member = User.objects.get(email=email)
-                member_users.append(member)
+                # User exists - check if they're registered for hackathon and available
                 if not HackathonParticipant.objects.filter(hackathon=hackathon, user=member).exists():
                     raise serializers.ValidationError(f"User with email {email} is not registered for this hackathon.")
                 # Check if member already has a team for this hackathon
@@ -65,57 +71,117 @@ class CreateTeamSerializer(serializers.ModelSerializer):
                 if participant.has_team:
                     raise serializers.ValidationError(f"User with email {email} is already part of a team for this hackathon.")
             except User.DoesNotExist:
-                raise serializers.ValidationError(f"User with email {email} does not exist.")
-        
-        # Check team size constraints
-        team_size = len(member_emails)
+                # User doesn't exist - that's fine, they'll get an invitation to sign up
+                pass
+
+        # Check team size constraints (including the creator)
+        team_size = len(member_emails) + 1  # +1 for the creator
         if team_size < hackathon.min_team_size or team_size > hackathon.max_team_size:
             raise serializers.ValidationError(f"Team size must be between {hackathon.min_team_size} and {hackathon.max_team_size} members.")
         
         # Add validated data for use in create method
-        data['member_users'] = member_users
+        data['invitation_emails'] = invitation_emails
         data['hackathon'] = hackathon
         
         return data
     
     def create(self, validated_data):
         from hackathon.models import HackathonParticipant
-        
+        from django.core.mail import send_mail
+        from django.conf import settings
+
         request = self.context.get('request')
         user = request.user
-        
+
         hackathon = validated_data.pop('hackathon')
-        member_users = validated_data.pop('member_users')
+        invitation_emails = validated_data.pop('invitation_emails')
         validated_data.pop('hackathon_id')
         validated_data.pop('members')
-        
+
         # Create team
         team = Team.objects.create(
             name=validated_data['name'],
             organizer=user,
             hackathon=hackathon
         )
-        
-        # Add members to team
-        team.members.set(member_users)
-        
-        # Update participant records for all team members
-        for member in team.members.all():
-            participant = HackathonParticipant.objects.get(hackathon=hackathon, user=member)
-            participant.team = team
-            participant.looking_for_team = False
-            participant.save()
-        
-        # Also update the organizer's participant record if they're not already in members
-        if user not in member_users:
+
+        # Add only the creator as initial member
+        team.members.set([user])
+
+        # Update creator's participant record
+        participant = HackathonParticipant.objects.get(hackathon=hackathon, user=user)
+        participant.team = team
+        participant.looking_for_team = False
+        participant.save()
+
+        # Send invitations to ALL invited members
+        for email in invitation_emails:
+            invitation = TeamInvitation.objects.create(
+                team=team,
+                email=email,
+                invited_by=user
+            )
+
+            # Check if user already exists
             try:
-                organizer_participant = HackathonParticipant.objects.get(hackathon=hackathon, user=user)
-                organizer_participant.team = team
-                organizer_participant.looking_for_team = False
-                organizer_participant.save()
-            except HackathonParticipant.DoesNotExist:
-                pass
-        
+                existing_user = User.objects.get(email=email)
+                user_exists = True
+            except User.DoesNotExist:
+                existing_user = None
+                user_exists = False
+
+            # Send invitation email
+            organizer_name = (user.first_name + ' ' + user.last_name).strip() or user.username
+
+            if user_exists:
+                # User exists - direct invitation
+                subject = f"Team Invitation: Join {team.name} for {hackathon.title}"
+                message = f"""
+Hi there!
+
+{organizer_name} has invited you to join the team "{team.name}" for the hackathon "{hackathon.title}".
+
+Click the link below to accept this invitation:
+{settings.FRONTEND_URL}/team-invitation/{invitation.token}
+
+This invitation will expire in 7 days.
+
+Good luck with the hackathon!
+
+Best regards,
+The Vortexis Team
+"""
+            else:
+                # User doesn't exist - signup invitation
+                subject = f"Join {team.name} for {hackathon.title} - Create Account"
+                message = f"""
+Hi there!
+
+{organizer_name} has invited you to join the team "{team.name}" for the hackathon "{hackathon.title}".
+
+To accept this invitation, you'll need to:
+1. Create an account: {settings.FRONTEND_URL}/signup?invitation={invitation.token}
+2. Register for the hackathon
+3. Accept the team invitation
+
+After completing these steps, you'll be added to the team.
+
+This invitation will expire in 7 days.
+
+Good luck with the hackathon!
+
+Best regards,
+The Vortexis Team
+"""
+
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=True
+            )
+
         return team
 
 
