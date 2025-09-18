@@ -107,25 +107,25 @@ class CreateSubmissionSerializer(serializers.ModelSerializer):
         from project.models import Project
         request = self.context.get('request')
         user = request.user
-        
+
         # Ensure value is an integer ID
-        if isinstance(value, Project):
-            project_id = value.id
-        else:
+        try:
             project_id = int(value)
-            
+        except (ValueError, TypeError):
+            raise serializers.ValidationError("Project ID must be an integer.")
+
         try:
             project = Project.objects.get(id=project_id)
         except Project.DoesNotExist:
             raise serializers.ValidationError("Project does not exist.")
-        
+
         if project.team not in user.teams.all():
             raise serializers.ValidationError("You are not a member of this project's team.")
-        
+
         hackathon = self.context.get('hackathon')
         if project.hackathon != hackathon:
             raise serializers.ValidationError("This project does not belong to this hackathon.")
-        
+
         if Submission.objects.filter(project=project, hackathon=hackathon).exists():
             raise serializers.ValidationError("This project is already submitted to this hackathon.")
         return project_id

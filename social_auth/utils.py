@@ -26,12 +26,12 @@ class Google:
 def register_social_user(provider, username, email, first_name, last_name):
     user = User.objects.filter(email=email).first()
     if user:
-        if provider == user.auth_provider:
-            return login_social_user(username)
-        else:
-            raise AuthenticationFailed(
-                detail=f"Please continue your login with {user.auth_provider} to access your account"
-            )
+        # Allow login regardless of original auth_provider
+        # Update the auth_provider to the current one being used (optional)
+        if provider != user.auth_provider:
+            user.auth_provider = provider
+            user.save()
+        return login_social_user(user.username)
     else:
         new_user = User.objects.create_user(email=email, username=username, first_name=first_name, last_name=last_name, password=settings.SOCIAL_AUTH_PASSWORD, auth_provider=provider)
         new_user.is_verified = True

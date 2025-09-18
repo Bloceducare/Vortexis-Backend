@@ -6,7 +6,7 @@ from .views import (
     SubmissionViewSet, ReviewViewSet, ThemeViewSet, SubmitProjectView, JudgeHackathonsView,
     HackathonJudgesView, HackathonParticipantsView, OrganizerHackathonsView,
     JoinTeamView, HackathonIndividualParticipantsView, AvailableTeamsView,
-    UserRegisteredHackathonsView, JudgeAllReviewsView
+    UserRegisteredHackathonsView, JudgeAllReviewsView, HackathonProjectsView
 
 )
 
@@ -32,6 +32,7 @@ urlpatterns = [
     path('<int:hackathon_id>/invite-judge/', InviteJudgeView.as_view(), name='hackathon_invite_judge'),
     path('accept-judge-invitation/', AcceptJudgeInvitationView.as_view(), name='accept_judge_invitation'),
     path('<int:hackathon_id>/submit-project/', SubmitProjectView.as_view(), name='project_submit'),
+    path('<int:hackathon_id>/projects/', HackathonProjectsView.as_view(), name='hackathon_projects'),
     path('skills/', AllSkillsView.as_view(), name='all_skills'),
     path('<int:hackathon_id>/', include(router.urls)),
 ]

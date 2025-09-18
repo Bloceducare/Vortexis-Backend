@@ -67,18 +67,24 @@ class HackathonCreateView(GenericAPIView):
 
 
 class HackathonListView(ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
     serializer_class = HackathonSerializer
 
     def get_queryset(self):
         return Hackathon.objects.filter(visibility=True)  # Only show public hackathons
 
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            # Allow unauthenticated access for listing hackathons
+            return []
+        else:
+            # Require authentication for creating hackathons
+            return [IsAuthenticated()]
+
     @swagger_auto_schema(
         responses={
-            200: HackathonSerializer(many=True),
-            401: "Unauthorized"
+            200: HackathonSerializer(many=True)
         },
-        operation_description="List all public hackathons.",
+        operation_description="List all public hackathons. No authentication required.",
         tags=['hackathons']
     )
     def get(self, request, *args, **kwargs):
@@ -86,7 +92,6 @@ class HackathonListView(ListCreateAPIView):
 
 
 class HackathonRetrieveView(RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
     serializer_class = HackathonSerializer
     lookup_field = 'id'
     lookup_url_kwarg = 'hackathon_id'
@@ -94,13 +99,20 @@ class HackathonRetrieveView(RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         return Hackathon.objects.all()
 
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            # Allow unauthenticated access for viewing hackathon details
+            return []
+        else:
+            # Require authentication for updating/deleting hackathons
+            return [IsAuthenticated()]
+
     @swagger_auto_schema(
         responses={
             200: HackathonSerializer,
-            404: "Hackathon not found",
-            401: "Unauthorized"
+            404: "Hackathon not found"
         },
-        operation_description="Retrieve a hackathon's details.",
+        operation_description="Retrieve a hackathon's details. No authentication required.",
         tags=['hackathons']
     )
     def get(self, request, *args, **kwargs):
@@ -707,6 +719,55 @@ class AllSkillsView(APIView):
     def get(self, request):
         skills = Theme.objects.values_list('name', flat=True)
         return Response({"skills": list(skills)}, status=status.HTTP_200_OK)
+
+
+class HackathonProjectsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={
+            200: "List of all projects in the hackathon",
+            401: "Unauthorized",
+            403: "Forbidden - Only organizers, judges, and admins can view all projects",
+            404: "Hackathon not found"
+        },
+        operation_description="Get all projects in a specific hackathon. Only accessible by organizers, judges, and admins.",
+        tags=['projects']
+    )
+    def get(self, request, hackathon_id):
+        try:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Check if user has permission to view all projects
+        is_organizer = (hackathon.organization and
+                       (hackathon.organization.organizer == request.user or
+                        request.user in hackathon.organization.moderators.all()))
+        is_judge = request.user in hackathon.judges.all()
+        is_admin = request.user.is_admin
+
+        if not (is_organizer or is_judge or is_admin):
+            return Response(
+                {"error": "You do not have permission to view all projects in this hackathon. Only organizers, judges, and admins can access this endpoint."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Get all projects for this hackathon
+        from project.models import Project
+        from project.serializers import ProjectSerializer
+
+        projects = Project.objects.filter(hackathon=hackathon).select_related('team', 'hackathon')
+        serializer = ProjectSerializer(projects, many=True)
+
+        return Response({
+            "hackathon": {
+                "id": hackathon.id,
+                "title": hackathon.title
+            },
+            "projects_count": projects.count(),
+            "projects": serializer.data
+        }, status=status.HTTP_200_OK)
 
 
 
