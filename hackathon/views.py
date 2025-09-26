@@ -5,13 +5,13 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
 from accounts.permissions import IsOrganizer, IsJudge
 from accounts.serializers import UserSerializer
-from django.core.mail import send_mail
 from django.conf import settings
 from django.utils import timezone
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from drf_yasg import openapi
+from notifications.services import NotificationService
 
 from team.models import Team
 from team.serializers import TeamSerializer
@@ -52,13 +52,23 @@ class HackathonCreateView(GenericAPIView):
         serializer = self.serializer_class(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         hackathon = serializer.save()
-        # Send email notification to organizer
-        send_mail(
-            subject="Hackathon Created Successfully",
-            message=f"Dear {(request.user.first_name + ' ' + request.user.last_name).strip() or request.user.username},\n\nYour hackathon '{hackathon.title}' has been created successfully.\nDetails: {hackathon.description}\nVenue: {hackathon.venue}\nStart Date: {hackathon.start_date}\nEnd Date: {hackathon.end_date}",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[request.user.email],
-            fail_silently=True
+        # Send notification to organizer
+        NotificationService.send_notification(
+            user=request.user,
+            title="Hackathon Created Successfully",
+            message=f"Your hackathon '{hackathon.title}' has been created successfully.",
+            category='account',
+            priority='normal',
+            send_email=True,
+            send_in_app=True,
+            data={
+                'hackathon_id': hackathon.id,
+                'hackathon_title': hackathon.title,
+                'description': hackathon.description,
+                'venue': hackathon.venue,
+                'start_date': str(hackathon.start_date),
+                'end_date': str(hackathon.end_date)
+            }
         )
         return Response(
             {"message": "Hackathon created successfully.", "hackathon": HackathonSerializer(hackathon).data},
@@ -146,13 +156,18 @@ class HackathonRetrieveView(RetrieveUpdateDestroyAPIView):
         if hackathon.organization.organizer != request.user and request.user not in hackathon.organization.moderators.all():
             return Response({"error": "You are not authorized to delete this hackathon."}, status=status.HTTP_403_FORBIDDEN)
         hackathon.delete()
-        # Send email notification to organizer
-        send_mail(
-            subject="Hackathon Deleted",
-            message=f"Dear {(request.user.first_name + ' ' + request.user.last_name).strip() or request.user.username},\n\nYour hackathon '{hackathon.title}' has been deleted.",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[request.user.email],
-            fail_silently=True
+        # Send notification to organizer
+        NotificationService.send_notification(
+            user=request.user,
+            title="Hackathon Deleted",
+            message=f"Your hackathon '{hackathon.title}' has been deleted.",
+            category='account',
+            priority='normal',
+            send_email=True,
+            send_in_app=True,
+            data={
+                'hackathon_title': hackathon.title
+            }
         )
         return Response({"message": "Hackathon deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
@@ -191,13 +206,23 @@ class HackathonRegistrationView(APIView):
             looking_for_team=True
         )
         
-        # Send email notification
-        send_mail(
-            subject="Hackathon Registration Successful",
-            message=f"Dear {(request.user.first_name + ' ' + request.user.last_name).strip() or request.user.username},\n\nYou have been successfully registered for '{hackathon.title}'.\nYou can now join existing teams or create a new team.\nStart Date: {hackathon.start_date}\nEnd Date: {hackathon.end_date}",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[request.user.email],
-            fail_silently=True
+        # Send registration notification
+        NotificationService.send_notification(
+            user=request.user,
+            title="Hackathon Registration Successful",
+            message=f"You have been successfully registered for '{hackathon.title}'. You can now join existing teams or create a new team.",
+            category='account',
+            priority='normal',
+            send_email=True,
+            send_in_app=True,
+            data={
+                'hackathon_id': hackathon.id,
+                'hackathon_title': hackathon.title,
+                'start_date': str(hackathon.start_date),
+                'end_date': str(hackathon.end_date)
+            },
+            action_url=f'/hackathons/{hackathon.id}',
+            action_text='View Hackathon'
         )
         
         return Response(
@@ -344,14 +369,26 @@ class SubmitProjectView(GenericAPIView):
         serializer = self.serializer_class(data=request.data, context={'request': request, 'project_id': project_id})
         serializer.is_valid(raise_exception=True)
         submission = serializer.save()
-        # Send email notification to team members
-        send_mail(
-            subject="Project Submission Successful",
-            message=f"Dear {(request.user.first_name + ' ' + request.user.last_name).strip() or request.user.username},\n\nYour project '{project.title}' has been submitted to '{submission.hackathon.title}'.\nSubmission ID: {submission.id}",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[member.email for member in project.team.members.all()],
-            fail_silently=True
-        )
+        # Send notification to team members
+        for member in project.team.members.all():
+            NotificationService.send_notification(
+                user=member,
+                title="Project Submission Successful",
+                message=f"Your project '{project.title}' has been submitted to '{submission.hackathon.title}'.",
+                category='account',
+                priority='normal',
+                send_email=True,
+                send_in_app=True,
+                data={
+                    'project_id': project.id,
+                    'project_title': project.title,
+                    'submission_id': submission.id,
+                    'hackathon_id': submission.hackathon.id,
+                    'hackathon_title': submission.hackathon.title
+                },
+                action_url=f'/submissions/{submission.id}',
+                action_text='View Submission'
+            )
         return Response(
             {"message": "Project submitted successfully.", "submission": SubmissionSerializer(submission).data},
             status=status.HTTP_201_CREATED
@@ -389,27 +426,49 @@ class SubmissionViewSet(ModelViewSet):
     def perform_create(self, serializer):
         hackathon = Hackathon.objects.get(id=self.kwargs['hackathon_id'])
         serializer.save()
-        # Send email notification for submission
+        # Send notification to organizer for new submission
         submission = serializer.instance
-        send_mail(
-            subject="New Submission Received",
-            message=f"Dear {(hackathon.organization.organizer.first_name + ' ' + hackathon.organization.organizer.last_name).strip() or hackathon.organization.organizer.username},\n\nA new submission for '{hackathon.title}' has been received.\nProject: {submission.project.title}\nTeam: {submission.team.name}",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[hackathon.organization.organizer.email],
-            fail_silently=True
+        NotificationService.send_notification(
+            user=hackathon.organization.organizer,
+            title="New Submission Received",
+            message=f"A new submission for '{hackathon.title}' has been received from team '{submission.team.name}'.",
+            category='system',
+            priority='normal',
+            send_email=True,
+            send_in_app=True,
+            data={
+                'hackathon_id': hackathon.id,
+                'hackathon_title': hackathon.title,
+                'submission_id': submission.id,
+                'project_title': submission.project.title,
+                'team_name': submission.team.name
+            },
+            action_url=f'/hackathons/{hackathon.id}/submissions',
+            action_text='View Submissions'
         )
 
     def perform_update(self, serializer):
         submission = serializer.save()
         if submission.approved:
-            # Send email notification for approval
-            send_mail(
-                subject="Submission Approved",
-                message=f"Dear {(submission.team.members.first().first_name + ' ' + submission.team.members.first().last_name).strip() or submission.team.members.first().username},\n\nYour submission '{submission.project.title}' for '{submission.hackathon.title}' has been approved.",
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[member.email for member in submission.team.members.all()],
-                fail_silently=True
-            )
+            # Send approval notification to team members
+            for member in submission.team.members.all():
+                NotificationService.send_notification(
+                    user=member,
+                    title="Submission Approved",
+                    message=f"Your submission '{submission.project.title}' for '{submission.hackathon.title}' has been approved.",
+                    category='account',
+                    priority='high',
+                    send_email=True,
+                    send_in_app=True,
+                    data={
+                        'submission_id': submission.id,
+                        'project_title': submission.project.title,
+                        'hackathon_id': submission.hackathon.id,
+                        'hackathon_title': submission.hackathon.title
+                    },
+                    action_url=f'/submissions/{submission.id}',
+                    action_text='View Submission'
+                )
 
 
 class ReviewViewSet(ModelViewSet):
@@ -432,14 +491,27 @@ class ReviewViewSet(ModelViewSet):
         if submission.status == 'pending':
             submission.status = 'reviewed'
             submission.save()
-        # Send email notification to submission team
-        send_mail(
-            subject="New Review for Your Submission",
-            message=f"Dear {(review.submission.team.members.first().first_name + ' ' + review.submission.team.members.first().last_name).strip() or review.submission.team.members.first().username},\n\nYour submission '{review.submission.project.title}' for '{review.submission.hackathon.title}' has received a new review.\nScore: {review.overall_score}\nComments: {review.review or 'No comments provided'}",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[member.email for member in review.submission.team.members.all()],
-            fail_silently=True
-        )
+        # Send review notification to submission team
+        for member in review.submission.team.members.all():
+            NotificationService.send_notification(
+                user=member,
+                title="New Review for Your Submission",
+                message=f"Your submission '{review.submission.project.title}' for '{review.submission.hackathon.title}' has received a new review.",
+                category='account',
+                priority='normal',
+                send_email=True,
+                send_in_app=True,
+                data={
+                    'review_id': review.id,
+                    'submission_id': review.submission.id,
+                    'project_title': review.submission.project.title,
+                    'hackathon_title': review.submission.hackathon.title,
+                    'overall_score': review.overall_score,
+                    'review_comments': review.review or 'No comments provided'
+                },
+                action_url=f'/submissions/{review.submission.id}',
+                action_text='View Review'
+            )
 
 
 class JudgeAllReviewsView(APIView):
@@ -590,24 +662,45 @@ class JoinTeamView(GenericAPIView):
         
         team = Team.objects.get(id=serializer.validated_data['team_id'])
         
-        # Send email notification to user and team members
-        send_mail(
-            subject=f"Joined Team for {hackathon.title}",
-            message=f"Dear {(request.user.first_name + ' ' + request.user.last_name).strip() or request.user.username},\n\nYou have successfully joined team '{team.name}' for '{hackathon.title}'.",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[request.user.email],
-            fail_silently=True
+        # Send notification to user about joining team
+        NotificationService.send_notification(
+            user=request.user,
+            title=f"Joined Team for {hackathon.title}",
+            message=f"You have successfully joined team '{team.name}' for '{hackathon.title}'.",
+            category='account',
+            priority='normal',
+            send_email=True,
+            send_in_app=True,
+            data={
+                'team_id': team.id,
+                'team_name': team.name,
+                'hackathon_id': hackathon.id,
+                'hackathon_title': hackathon.title
+            },
+            action_url=f'/teams/{team.id}',
+            action_text='View Team'
         )
-        
-        # Notify team members
+
+        # Notify existing team members
         other_members = team.members.exclude(id=request.user.id)
-        if other_members.exists():
-            send_mail(
-                subject=f"New Team Member Joined - {hackathon.title}",
-                message=f"Dear Team,\n\n{(request.user.first_name + ' ' + request.user.last_name).strip() or request.user.username} has joined your team '{team.name}' for '{hackathon.title}'.",
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[member.email for member in other_members],
-                fail_silently=True
+        for member in other_members:
+            NotificationService.send_notification(
+                user=member,
+                title=f"New Team Member Joined - {hackathon.title}",
+                message=f"{request.user.get_full_name() or request.user.username} has joined your team '{team.name}' for '{hackathon.title}'.",
+                category='account',
+                priority='normal',
+                send_email=True,
+                send_in_app=True,
+                data={
+                    'new_member_name': request.user.get_full_name() or request.user.username,
+                    'team_id': team.id,
+                    'team_name': team.name,
+                    'hackathon_id': hackathon.id,
+                    'hackathon_title': hackathon.title
+                },
+                action_url=f'/teams/{team.id}',
+                action_text='View Team'
             )
         
         return Response(
