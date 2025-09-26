@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Organization
 from accounts.models import User
+from notifications.services import NotificationService
 
 class ApproveOrganizationSerializer(serializers.Serializer):
     """Empty serializer for the approve organization endpoint."""
@@ -38,14 +39,20 @@ class CreateOrganizationSerializer(serializers.ModelSerializer):
             **validated_data,
             organizer=user
         )
-        # Send email notification
-        from django.core.mail import send_mail
-        send_mail(
-            subject='Organization Created',
+        # Send notification
+        NotificationService.send_notification(
+            user=user,
+            title='Organization Created',
             message=f'Your organization "{organization.name}" has been created and is pending admin approval.',
-            from_email='noreply@hackathon.com',
-            recipient_list=[user.email],
-            fail_silently=True
+            category='account',
+            priority='normal',
+            send_email=True,
+            send_in_app=True,
+            data={
+                'organization_id': organization.id,
+                'organization_name': organization.name,
+                'action': 'organization_created'
+            }
         )
         return organization
 
@@ -73,15 +80,24 @@ class AddModeratorSerializer(serializers.Serializer):
     def update(self, instance, validated_data):
         moderators = validated_data.get('moderators', [])
         instance.moderators.add(*moderators)
-        # Send email to new moderators
-        from django.core.mail import send_mail
+        # Send notification to new moderators
         for moderator in moderators:
-            send_mail(
-                subject='Added as Moderator',
+            NotificationService.send_notification(
+                user=moderator,
+                title='Added as Moderator',
                 message=f'You have been added as a moderator for "{instance.name}".',
-                from_email='noreply@hackathon.com',
-                recipient_list=[moderator.email],
-                fail_silently=True
+                category='account',
+                priority='normal',
+                send_email=True,
+                send_in_app=True,
+                data={
+                    'organization_id': instance.id,
+                    'organization_name': instance.name,
+                    'role': 'moderator',
+                    'action': 'added_as_moderator'
+                },
+                action_url=f'/organizations/{instance.id}',
+                action_text='View Organization'
             )
         return instance
 
@@ -97,14 +113,21 @@ class RemoveModeratorSerializer(serializers.Serializer):
     def update(self, instance, validated_data):
         moderators = validated_data.get('moderators', [])
         instance.moderators.remove(*moderators)
-        # Send email to removed moderators
-        from django.core.mail import send_mail
+        # Send notification to removed moderators
         for moderator in moderators:
-            send_mail(
-                subject='Removed as Moderator',
+            NotificationService.send_notification(
+                user=moderator,
+                title='Removed as Moderator',
                 message=f'You have been removed as a moderator for "{instance.name}".',
-                from_email='noreply@hackathon.com',
-                recipient_list=[moderator.email],
-                fail_silently=True
+                category='account',
+                priority='normal',
+                send_email=True,
+                send_in_app=True,
+                data={
+                    'organization_id': instance.id,
+                    'organization_name': instance.name,
+                    'role': 'moderator',
+                    'action': 'removed_as_moderator'
+                }
             )
         return instance
