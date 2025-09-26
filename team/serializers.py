@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from django.utils import timezone
+from notifications.services import NotificationService
 
 from accounts.models import User
 from .models import Team, TeamInvitation
@@ -174,13 +175,37 @@ Best regards,
 The Vortexis Team
 """
 
-            send_mail(
-                subject=subject,
-                message=message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=True
-            )
+            if user_exists:
+                # User exists - use NotificationService
+                action_url = f"{settings.FRONTEND_URL}/team-invitation/{invitation.token}"
+                NotificationService.send_notification(
+                    user=existing_user,
+                    title=subject,
+                    message=message.strip(),
+                    category='account',
+                    priority='normal',
+                    data={
+                        'team_id': team.id,
+                        'hackathon_id': hackathon.id,
+                        'invitation_token': invitation.token,
+                        'team_name': team.name,
+                        'hackathon_title': hackathon.title,
+                        'organizer_name': organizer_name
+                    },
+                    action_url=action_url,
+                    action_text='Accept Invitation',
+                    send_email=True,
+                    send_in_app=True
+                )
+            else:
+                # User doesn't exist - fallback to direct email
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[email],
+                    fail_silently=True
+                )
 
         return team
 
@@ -397,14 +422,38 @@ class AddMemberSerializer(serializers.Serializer):
             The Vortexis Team
             """
         
-        # Send email
-        send_mail(
-            subject=subject,
-            message=message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[email],
-            fail_silently=False
-        )
+        # Send email notification
+        if user_exists:
+            # User exists - use NotificationService
+            action_url = f"{settings.FRONTEND_URL}/team-invitation/{invitation.token}"
+            NotificationService.send_notification(
+                user=existing_user,
+                title=subject,
+                message=message.strip(),
+                category='account',
+                priority='normal',
+                data={
+                    'team_id': team.id,
+                    'hackathon_id': team.hackathon.id,
+                    'invitation_token': invitation.token,
+                    'team_name': team_name,
+                    'hackathon_title': hackathon_title,
+                    'organizer_name': organizer_name
+                },
+                action_url=action_url,
+                action_text='Accept Invitation',
+                send_email=True,
+                send_in_app=True
+            )
+        else:
+            # User doesn't exist - fallback to direct email
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False
+            )
         
         return {
             'invitation': invitation,

@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'team',
     'project',
     'communications',
+    'notifications',
     'channels',
 ]
 

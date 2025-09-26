@@ -43,7 +43,8 @@ urlpatterns = [
     path(f'api/v1/hackathon/', include('hackathon.urls'), name='hackathon'),
     path(f'api/v1/team/', include('team.urls'), name='team'),
     path(f'api/v1/project/', include('project.urls'), name='project'),
-    path('api/v1/communications/', include('communications.urls'), name='communications')
+    path('api/v1/communications/', include('communications.urls'), name='communications'),
+    path('api/v1/', include('notifications.urls'), name='notifications')
 ]
 
 # Serve media files in development
