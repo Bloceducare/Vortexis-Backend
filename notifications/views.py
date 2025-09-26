@@ -17,7 +17,7 @@ from .serializers import (
     NotificationFilterSerializer
 )
 from .services import NotificationService, NotificationTemplates
-from swiftconnect.permissions import IsAdminOrRoleAdmin
+from accounts.permissions import IsAdmin
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -149,7 +149,7 @@ class AdminNotificationViewSet(viewsets.ModelViewSet):
     across all users in the system.
     """
     serializer_class = NotificationSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrRoleAdmin]
+    permission_classes = [IsAuthenticated, IsAdmin]
     queryset = Notification.objects.all()
     
     def get_queryset(self):
@@ -302,7 +302,7 @@ class EmailNotificationViewSet(viewsets.ReadOnlyModelViewSet):
     delivery status across all users.
     """
     serializer_class = EmailNotificationSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrRoleAdmin]
+    permission_classes = [IsAuthenticated, IsAdmin]
     queryset = EmailNotification.objects.all()
     
     def get_queryset(self):
@@ -330,7 +330,7 @@ class NotificationTemplateViewSet(viewsets.ModelViewSet):
     for consistent messaging across the platform.
     """
     serializer_class = NotificationTemplateSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrRoleAdmin]
+    permission_classes = [IsAuthenticated, IsAdmin]
     queryset = NotificationTemplate.objects.all()
     
     @action(detail=False, methods=['get'])
@@ -354,7 +354,7 @@ class CreateSingleNotificationView(generics.CreateAPIView):
     with full customization options.
     """
     serializer_class = CreateNotificationSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrRoleAdmin]
+    permission_classes = [IsAuthenticated, IsAdmin]
     
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -393,7 +393,7 @@ class CreateBulkNotificationView(generics.CreateAPIView):
     users simultaneously. Useful for system announcements and promotions.
     """
     serializer_class = BulkNotificationSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrRoleAdmin]
+    permission_classes = [IsAuthenticated, IsAdmin]
     
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
