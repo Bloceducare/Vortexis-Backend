@@ -22,7 +22,13 @@ class ConversationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Conversation.objects.none()
+
         user = self.request.user
+        if not user.is_authenticated:
+            return Conversation.objects.none()
+
         return Conversation.objects.filter(participants__user=user).distinct()
 
     def perform_create(self, serializer):
