@@ -182,7 +182,35 @@ class UserSerializer:
             user.save()
             return data
 
+    class PublicSerializer(serializers.ModelSerializer):
+        """Serializer for public user information (no email or sensitive data)"""
+        profile = serializers.SerializerMethodField()
+
+        class Meta:
+            model = User
+            fields = [
+                'id', 'username', 'first_name', 'last_name', 'profile',
+                'is_participant', 'is_organizer', 'is_judge', 'is_moderator'
+            ]
+
+        def get_profile(self, obj):
+            profile = Profile.objects.filter(user=obj).first()
+            if profile:
+                # Return only public profile data
+                return {
+                    'bio': profile.bio,
+                    'github': profile.github,
+                    'linkedin': profile.linkedin,
+                    'twitter': profile.twitter,
+                    'website': profile.website,
+                    'location': profile.location,
+                    'profile_picture': profile.profile_picture,
+                    'skills': [skill.name for skill in profile.skills.all()]
+                }
+            return None
+
     class RetrieveSerializer(serializers.ModelSerializer):
+        """Serializer for user's own profile data (includes email and sensitive info)"""
         profile = serializers.SerializerMethodField()
 
         class Meta:

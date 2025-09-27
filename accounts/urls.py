@@ -16,7 +16,8 @@ from .views import (
     ProfileDeleteView,
     SkillViewSet,
     UserSkillsView,
-    HackathonSkillsView
+    HackathonSkillsView,
+    PublicUserProfileView
 )
 
 router = DefaultRouter()
@@ -33,6 +34,7 @@ urlpatterns = [
     path('users/<int:user_id>/update/', UserUpdateView.as_view(), name='user_update'),
     path('users/<int:user_id>/delete/', UserDeleteView.as_view(), name='user_delete'),
     path('users/<int:user_id>/skills/', UserSkillsView.as_view(), name='user_skills'),
+    path('users/public/<str:identifier>/', PublicUserProfileView.as_view(), name='public_user_profile'),
     path('profiles/create/', ProfileCreateView.as_view(), name='profile_create'),
     path('profiles/<int:user_id>/', ProfileRetrieveView.as_view(), name='profile_retrieve'),
     path('profiles/<int:user_id>/update/', ProfileUpdateView.as_view(), name='profile_update'),

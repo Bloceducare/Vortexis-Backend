@@ -88,8 +88,7 @@ class SubmissionSerializer(serializers.ModelSerializer):
                 'review': review.review,
                 'judge': {
                     'id': review.judge.id,
-                    'username': review.judge.username,
-                    'email': review.judge.email
+                    'username': review.judge.username
                 }
             }
             for review in reviews
@@ -169,7 +168,7 @@ class ReviewSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at', 'judge']
 
     def get_judge(self, obj):
-        return {'id': obj.judge.id, 'username': obj.judge.username, 'email': obj.judge.email}
+        return {'id': obj.judge.id, 'username': obj.judge.username}
 
     def validate(self, data):
         request = self.context.get('request')
@@ -240,8 +239,7 @@ class HackathonSerializer(serializers.ModelSerializer):
                 'id': judge.id,
                 'username': judge.username,
                 'first_name': judge.first_name,
-                'last_name': judge.last_name,
-                'email': judge.email
+                'last_name': judge.last_name
             }
             for judge in obj.judges.all()
         ]
@@ -474,7 +472,6 @@ class HackathonParticipantSerializer(serializers.ModelSerializer):
         return {
             'id': obj.user.id,
             'username': obj.user.username,
-            'email': obj.user.email,
             'first_name': obj.user.first_name,
             'last_name': obj.user.last_name
         }
