@@ -212,6 +212,7 @@ The Vortexis Team
 
 class TeamSerializer(serializers.ModelSerializer):
     organizer = serializers.SerializerMethodField()
+    creator = serializers.SerializerMethodField()  # Alias for organizer for clarity
     members = serializers.SerializerMethodField()
     hackathon = serializers.SerializerMethodField()
     projects = serializers.SerializerMethodField()
@@ -219,30 +220,46 @@ class TeamSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Team
-        fields = ['id', 'name', 'organizer', 'members', 'hackathon', 'projects', 'submissions', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'organizer', 'creator', 'members', 'hackathon', 'projects', 'submissions', 'created_at', 'updated_at']
 
     def get_organizer(self, obj):
         if obj.organizer:
-            return {
-                'id': obj.organizer.id, 
+            organizer_data = {
+                'id': obj.organizer.id,
                 'username': obj.organizer.username,
                 'first_name': obj.organizer.first_name,
-                'last_name': obj.organizer.last_name,
-                'email': obj.organizer.email
+                'last_name': obj.organizer.last_name
             }
+
+            # Add profile picture if available
+            if hasattr(obj.organizer, 'profile') and obj.organizer.profile.profile_picture:
+                organizer_data['profile_picture'] = obj.organizer.profile.profile_picture
+
+            return organizer_data
         return None
 
+    def get_creator(self, obj):
+        # Alias for organizer to make it clear who created the team
+        return self.get_organizer(obj)
+
     def get_members(self, obj):
-        return [
-            {
-                'id': member.id, 
+        members_data = []
+        for member in obj.members.all():
+            member_data = {
+                'id': member.id,
                 'username': member.username,
                 'first_name': member.first_name,
                 'last_name': member.last_name,
-                'email': member.email
-            } 
-            for member in obj.members.all()
-        ]
+                'is_creator': member == obj.organizer  # Flag to identify creator among members
+            }
+
+            # Add profile picture if available
+            if hasattr(member, 'profile') and member.profile.profile_picture:
+                member_data['profile_picture'] = member.profile.profile_picture
+
+            members_data.append(member_data)
+
+        return members_data
     
     def get_hackathon(self, obj):
         return {
