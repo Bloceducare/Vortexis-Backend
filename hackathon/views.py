@@ -571,7 +571,7 @@ class HackathonJudgesView(APIView):
 
     @swagger_auto_schema(
         responses={
-            200: UserSerializer.RetrieveSerializer(many=True),
+            200: UserSerializer.PublicSerializer(many=True),
             401: "Unauthorized",
             404: "Hackathon not found"
         },
@@ -585,7 +585,7 @@ class HackathonJudgesView(APIView):
             return Response({"error": "Hackathon does not exist."}, status=status.HTTP_404_NOT_FOUND)
         
         judges = hackathon.judges.all()
-        serializer = UserSerializer.RetrieveSerializer(judges, many=True)
+        serializer = UserSerializer.PublicSerializer(judges, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -860,6 +860,64 @@ class HackathonProjectsView(APIView):
             },
             "projects_count": projects.count(),
             "projects": serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class SubmissionProjectDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={
+            200: "Project details retrieved successfully",
+            404: "Submission not found",
+            403: "Forbidden"
+        },
+        operation_description="Get project details using submission ID.",
+        tags=['hackathons']
+    )
+    def get(self, request, submission_id):
+        """
+        Get project details from a submission ID.
+        Accessible by submission team members, judges, and organizers.
+        """
+        try:
+            submission = Submission.objects.get(id=submission_id)
+        except Submission.DoesNotExist:
+            return Response(
+                {"error": "Submission not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check permissions - allow team members, judges, organizers, and admins
+        user = request.user
+        has_access = (
+            user in submission.team.members.all() or  # Team member
+            user.is_judge or  # Judge
+            user.is_organizer or  # Organizer
+            user.is_admin  # Admin
+        )
+
+        if not has_access:
+            return Response(
+                {"error": "You don't have permission to view this project."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Import ProjectSerializer
+        from project.serializers import ProjectSerializer
+
+        project = submission.project
+        serializer = ProjectSerializer(project)
+
+        return Response({
+            "submission": {
+                "id": submission.id,
+                "status": submission.status,
+                "approved": submission.approved,
+                "created_at": submission.created_at,
+                "updated_at": submission.updated_at
+            },
+            "project": serializer.data
         }, status=status.HTTP_200_OK)
 
 
