@@ -1,7 +1,8 @@
 from rest_framework import serializers
-from .models import Organization
+from .models import Organization, ModeratorInvitation
 from accounts.models import User
 from notifications.services import NotificationService
+from django.utils import timezone
 
 class ApproveOrganizationSerializer(serializers.Serializer):
     """Empty serializer for the approve organization endpoint."""
@@ -24,9 +25,6 @@ class CreateOrganizationSerializer(serializers.ModelSerializer):
     def validate(self, data):
         if not self.context.get('request'):
             raise serializers.ValidationError("Request context is required.")
-        user = self.context['request'].user
-        if Organization.objects.filter(organizer=user).exists():
-            raise serializers.ValidationError("You already have an organization.")
         if not data.get('name').strip():
             raise serializers.ValidationError("Name cannot be empty.")
         if not data.get('description').strip():
@@ -131,3 +129,192 @@ class RemoveModeratorSerializer(serializers.Serializer):
                 }
             )
         return instance
+
+
+class ModeratorInvitationSerializer(serializers.ModelSerializer):
+    organization_name = serializers.CharField(source='organization.name', read_only=True)
+    inviter_username = serializers.CharField(source='inviter.username', read_only=True)
+    invitee_username = serializers.CharField(source='invitee.username', read_only=True)
+
+    class Meta:
+        model = ModeratorInvitation
+        fields = [
+            'id', 'organization', 'organization_name', 'inviter', 'inviter_username',
+            'email', 'invitee', 'invitee_username', 'status', 'message',
+            'created_at', 'expires_at', 'responded_at'
+        ]
+        read_only_fields = [
+            'id', 'organization_name', 'inviter_username', 'invitee_username',
+            'inviter', 'created_at', 'expires_at', 'responded_at'
+        ]
+
+
+class CreateModeratorInvitationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ModeratorInvitation
+        fields = ['email', 'message']
+
+    def validate_email(self, value):
+        organization_id = self.context.get('organization_id')
+        if not organization_id:
+            raise serializers.ValidationError("Organization context is required.")
+
+        if ModeratorInvitation.objects.filter(
+            organization_id=organization_id,
+            email=value,
+            status=ModeratorInvitation.PENDING
+        ).exists():
+            raise serializers.ValidationError("A pending invitation already exists for this email.")
+
+        try:
+            organization = Organization.objects.get(id=organization_id)
+            if organization.moderators.filter(email=value).exists():
+                raise serializers.ValidationError("This user is already a moderator.")
+            if organization.organizer and organization.organizer.email == value:
+                raise serializers.ValidationError("The organizer cannot be invited as a moderator.")
+        except Organization.DoesNotExist:
+            raise serializers.ValidationError("Organization not found.")
+
+        return value
+
+    def create(self, validated_data):
+        organization_id = self.context.get('organization_id')
+        inviter = self.context.get('inviter')
+
+        organization = Organization.objects.get(id=organization_id)
+
+        try:
+            invitee = User.objects.get(email=validated_data['email'])
+        except User.DoesNotExist:
+            invitee = None
+
+        invitation = ModeratorInvitation.objects.create(
+            organization=organization,
+            inviter=inviter,
+            invitee=invitee,
+            **validated_data
+        )
+
+        NotificationService.send_notification(
+            user=invitee if invitee else None,
+            title='Moderator Invitation',
+            message=f'You have been invited to be a moderator for "{organization.name}".',
+            category='invitation',
+            priority='normal',
+            send_email=True,
+            send_in_app=True if invitee else False,
+            email_override=validated_data['email'] if not invitee else None,
+            data={
+                'organization_id': organization.id,
+                'organization_name': organization.name,
+                'invitation_id': invitation.id,
+                'invitation_token': invitation.token,
+                'action': 'moderator_invitation'
+            },
+            action_url=f'/invitations/moderator/{invitation.token}',
+            action_text='View Invitation'
+        )
+
+        return invitation
+
+
+class AcceptInvitationSerializer(serializers.Serializer):
+    token = serializers.CharField()
+
+    def validate_token(self, value):
+        try:
+            invitation = ModeratorInvitation.objects.get(token=value)
+        except ModeratorInvitation.DoesNotExist:
+            raise serializers.ValidationError("Invalid invitation token.")
+
+        if not invitation.is_valid():
+            raise serializers.ValidationError("This invitation has expired or is no longer valid.")
+
+        self.invitation = invitation
+        return value
+
+    def save(self):
+        user = self.context.get('user')
+        invitation = self.invitation
+
+        if invitation.invitee and invitation.invitee != user:
+            raise serializers.ValidationError("This invitation is for a different user.")
+
+        if not invitation.invitee:
+            invitation.invitee = user
+
+        invitation.status = ModeratorInvitation.ACCEPTED
+        invitation.responded_at = timezone.now()
+        invitation.save()
+
+        invitation.organization.moderators.add(user)
+
+        if not user.is_moderator:
+            user.is_moderator = True
+            user.save()
+
+        NotificationService.send_notification(
+            user=invitation.inviter,
+            title='Invitation Accepted',
+            message=f'{user.username} has accepted the moderator invitation for "{invitation.organization.name}".',
+            category='invitation',
+            priority='normal',
+            send_email=True,
+            send_in_app=True,
+            data={
+                'organization_id': invitation.organization.id,
+                'organization_name': invitation.organization.name,
+                'moderator_username': user.username,
+                'action': 'invitation_accepted'
+            }
+        )
+
+        return invitation
+
+
+class DeclineInvitationSerializer(serializers.Serializer):
+    token = serializers.CharField()
+
+    def validate_token(self, value):
+        try:
+            invitation = ModeratorInvitation.objects.get(token=value)
+        except ModeratorInvitation.DoesNotExist:
+            raise serializers.ValidationError("Invalid invitation token.")
+
+        if not invitation.is_valid():
+            raise serializers.ValidationError("This invitation has expired or is no longer valid.")
+
+        self.invitation = invitation
+        return value
+
+    def save(self):
+        user = self.context.get('user')
+        invitation = self.invitation
+
+        if invitation.invitee and invitation.invitee != user:
+            raise serializers.ValidationError("This invitation is for a different user.")
+
+        if not invitation.invitee:
+            invitation.invitee = user
+
+        invitation.status = ModeratorInvitation.DECLINED
+        invitation.responded_at = timezone.now()
+        invitation.save()
+
+        NotificationService.send_notification(
+            user=invitation.inviter,
+            title='Invitation Declined',
+            message=f'{user.username} has declined the moderator invitation for "{invitation.organization.name}".',
+            category='invitation',
+            priority='normal',
+            send_email=True,
+            send_in_app=True,
+            data={
+                'organization_id': invitation.organization.id,
+                'organization_name': invitation.organization.name,
+                'moderator_username': user.username,
+                'action': 'invitation_declined'
+            }
+        )
+
+        return invitation
