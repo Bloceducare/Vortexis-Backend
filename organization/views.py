@@ -2,13 +2,15 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import IsAuthenticated
-from accounts.permissions import IsOrganizer, IsAdmin
+from accounts.permissions import IsOrganizer, IsAdmin, IsOrganizationOrganizer
 from .serializers import (
     OrganizationSerializer, CreateOrganizationSerializer,
     UpdateOrganizationSerializer, AddModeratorSerializer,
-    RemoveModeratorSerializer, ApproveOrganizationSerializer
+    RemoveModeratorSerializer, ApproveOrganizationSerializer,
+    ModeratorInvitationSerializer, CreateModeratorInvitationSerializer,
+    AcceptInvitationSerializer, DeclineInvitationSerializer
 )
-from .models import Organization
+from .models import Organization, ModeratorInvitation
 from drf_yasg.utils import swagger_auto_schema
 
 class CreateOrganizationView(GenericAPIView):
@@ -29,7 +31,7 @@ class CreateOrganizationView(GenericAPIView):
 
 class UpdateOrganizationView(GenericAPIView):
     serializer_class = UpdateOrganizationSerializer
-    permission_classes = [IsAuthenticated, IsOrganizer]
+    permission_classes = [IsAuthenticated, IsOrganizationOrganizer]
 
     @swagger_auto_schema(
         request_body=serializer_class,
@@ -48,7 +50,7 @@ class UpdateOrganizationView(GenericAPIView):
         return Response(OrganizationSerializer(organization).data)
 
 class DeleteOrganizationView(GenericAPIView):
-    permission_classes = [IsAuthenticated, IsOrganizer]
+    permission_classes = [IsAuthenticated, IsOrganizationOrganizer]
 
     @swagger_auto_schema(
         responses={204: 'No Content', 403: 'Forbidden', 404: 'Not Found'},
@@ -90,6 +92,19 @@ class GetOrganizationsView(GenericAPIView):
     )
     def get(self, request):
         organizations = Organization.objects.all()
+        return Response(OrganizationSerializer(organizations, many=True).data)
+
+
+class GetUserOrganizationsView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={200: OrganizationSerializer(many=True)},
+        operation_description="Retrieve all organizations owned by the authenticated user.",
+        tags=['organization']
+    )
+    def get(self, request):
+        organizations = Organization.objects.filter(organizer=request.user)
         return Response(OrganizationSerializer(organizations, many=True).data)
 
 class GetUnapprovedOrganizationsView(GenericAPIView):
@@ -137,7 +152,7 @@ class ApproveOrganizationView(GenericAPIView):
 
 class AddModeratorView(GenericAPIView):
     serializer_class = AddModeratorSerializer
-    permission_classes = [IsAuthenticated, IsOrganizer]
+    permission_classes = [IsAuthenticated, IsOrganizationOrganizer]
 
     @swagger_auto_schema(
         request_body=serializer_class,
@@ -157,7 +172,7 @@ class AddModeratorView(GenericAPIView):
 
 class RemoveModeratorView(GenericAPIView):
     serializer_class = RemoveModeratorSerializer
-    permission_classes = [IsAuthenticated, IsOrganizer]
+    permission_classes = [IsAuthenticated, IsOrganizationOrganizer]
 
     @swagger_auto_schema(
         request_body=serializer_class,
