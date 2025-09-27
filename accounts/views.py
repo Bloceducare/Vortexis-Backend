@@ -467,3 +467,36 @@ class ResetPasswordView(GenericAPIView):
             {"message": "Password reset successful."},
             status=status.HTTP_200_OK
         )
+
+
+class PublicUserProfileView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={
+            200: UserSerializer.PublicSerializer,
+            404: "User not found"
+        },
+        operation_description="Get public profile information for any user by username or ID.",
+        tags=['account']
+    )
+    def get(self, request, identifier):
+        """
+        Get public profile information for a user by username or user ID.
+        Returns only publicly safe information (no email or sensitive data).
+        """
+        try:
+            # Try to get user by ID first, then by username
+            if identifier.isdigit():
+                user = User.objects.get(id=int(identifier))
+            else:
+                user = User.objects.get(username=identifier)
+
+            serializer = UserSerializer.PublicSerializer(user)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
