@@ -161,14 +161,18 @@ class UpdateSubmissionSerializer(serializers.ModelSerializer):
 class ReviewSerializer(serializers.ModelSerializer):
     judge = serializers.SerializerMethodField()
     submission = serializers.PrimaryKeyRelatedField(queryset=Submission.objects.all())
+    hackathon_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Review
-        fields = ['id', 'submission', 'judge', 'innovation_score', 'technical_score', 'user_experience_score', 'impact_score', 'presentation_score', 'overall_score', 'review', 'created_at', 'updated_at']
+        fields = ['id', 'submission', 'judge', 'hackathon_id', 'innovation_score', 'technical_score', 'user_experience_score', 'impact_score', 'presentation_score', 'overall_score', 'review', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at', 'judge']
 
     def get_judge(self, obj):
         return {'id': obj.judge.id, 'username': obj.judge.username}
+
+    def get_hackathon_id(self, obj):
+        return obj.submission.hackathon.id
 
     def validate(self, data):
         request = self.context.get('request')
