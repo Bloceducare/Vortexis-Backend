@@ -625,10 +625,13 @@ class OrganizerHackathonsView(APIView):
         tags=['hackathons']
     )
     def get(self, request):
-        if not request.user.organization:
+        # Get all organizations where the user is the organizer
+        user_orgs = request.user.organizations.all()
+        if not user_orgs.exists():
             return Response({"error": "You don't have an organization."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        hackathons = Hackathon.objects.filter(organization=request.user.organization)
+
+        # Get all hackathons from user's organizations
+        hackathons = Hackathon.objects.filter(organization__in=user_orgs)
         serializer = HackathonSerializer(hackathons, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
