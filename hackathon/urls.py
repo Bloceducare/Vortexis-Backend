@@ -7,7 +7,7 @@ from .views import (
     HackathonJudgesView, HackathonParticipantsView, OrganizerHackathonsView,
     JoinTeamView, HackathonIndividualParticipantsView, AvailableTeamsView,
     UserRegisteredHackathonsView, JudgeAllReviewsView, HackathonProjectsView,
-    SubmissionProjectDetailView
+    SubmissionProjectDetailView, OrganizationHackathonsView
 
 )
 
@@ -23,6 +23,7 @@ urlpatterns = [
     path('judge/hackathons/', JudgeHackathonsView.as_view(), name='judge_hackathons'),
     path('judge/reviews/', JudgeAllReviewsView.as_view(), name='judge_all_reviews'),
     path('organizer/hackathons/', OrganizerHackathonsView.as_view(), name='organizer_hackathons'),
+    path('organization/<int:organization_id>/hackathons/', OrganizationHackathonsView.as_view(), name='organization_hackathons'),
     path('<int:hackathon_id>/', HackathonRetrieveView.as_view(), name='hackathon_retrieve'),
     path('<int:hackathon_id>/judges/', HackathonJudgesView.as_view(), name='hackathon_judges'),
     path('<int:hackathon_id>/participants/', HackathonParticipantsView.as_view(), name='hackathon_participants'),

@@ -636,6 +636,40 @@ class OrganizerHackathonsView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+class OrganizationHackathonsView(APIView):
+
+    def get_permissions(self):
+        # Allow unauthenticated access for viewing public hackathons
+        return []
+
+    @swagger_auto_schema(
+        responses={
+            200: HackathonSerializer(many=True),
+            404: "Organization not found"
+        },
+        operation_description="Fetch all hackathons for a specific organization. No authentication required.",
+        tags=['hackathons']
+    )
+    def get(self, request, organization_id):
+        from organization.models import Organization
+        try:
+            organization = Organization.objects.get(id=organization_id)
+        except Organization.DoesNotExist:
+            return Response({"error": "Organization not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Get all hackathons for this organization
+        hackathons = Hackathon.objects.filter(organization=organization)
+        serializer = HackathonSerializer(hackathons, many=True)
+        return Response({
+            "organization": {
+                "id": organization.id,
+                "name": organization.name
+            },
+            "hackathons_count": hackathons.count(),
+            "hackathons": serializer.data
+        }, status=status.HTTP_200_OK)
+
+
 
 
 class JoinTeamView(GenericAPIView):
