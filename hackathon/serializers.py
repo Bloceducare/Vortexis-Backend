@@ -161,14 +161,18 @@ class UpdateSubmissionSerializer(serializers.ModelSerializer):
 class ReviewSerializer(serializers.ModelSerializer):
     judge = serializers.SerializerMethodField()
     submission = serializers.PrimaryKeyRelatedField(queryset=Submission.objects.all())
+    hackathon_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Review
-        fields = ['id', 'submission', 'judge', 'innovation_score', 'technical_score', 'user_experience_score', 'impact_score', 'presentation_score', 'overall_score', 'review', 'created_at', 'updated_at']
+        fields = ['id', 'submission', 'judge', 'hackathon_id', 'innovation_score', 'technical_score', 'user_experience_score', 'impact_score', 'presentation_score', 'overall_score', 'review', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at', 'judge']
 
     def get_judge(self, obj):
         return {'id': obj.judge.id, 'username': obj.judge.username}
+
+    def get_hackathon_id(self, obj):
+        return obj.submission.hackathon.id
 
     def validate(self, data):
         request = self.context.get('request')
@@ -253,9 +257,10 @@ class HackathonSerializer(serializers.ModelSerializer):
 
 class CreateHackathonSerializer(HackathonSerializer):
     banner_image_file = serializers.ImageField(write_only=True, required=False)
-    
+    organization_id = serializers.IntegerField(write_only=True, required=True)
+
     class Meta(HackathonSerializer.Meta):
-        fields = ['title', 'description', 'banner_image', 'banner_image_file', 'visibility', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'rules', 'prizes', 'evaluation_criteria']
+        fields = ['organization_id', 'title', 'description', 'banner_image', 'banner_image_file', 'visibility', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'rules', 'prizes', 'evaluation_criteria']
         extra_kwargs = {
             'banner_image': {'read_only': True}
         }
@@ -265,8 +270,18 @@ class CreateHackathonSerializer(HackathonSerializer):
         if not request:
             raise serializers.ValidationError("Request context is required.")
         user = request.user
-        if not user.is_organizer or not user.organization or not user.organization.is_approved:
-            raise serializers.ValidationError("Only organizers with an approved organization can create a hackathon.")
+        if not user.is_organizer:
+            raise serializers.ValidationError("Only organizers can create a hackathon.")
+
+        # Validate that the provided organization belongs to the user and is approved
+        organization_id = data.get('organization_id')
+        if not organization_id:
+            raise serializers.ValidationError("organization_id is required.")
+
+        user_org = user.organizations.filter(id=organization_id, is_approved=True).first()
+        if not user_org:
+            raise serializers.ValidationError("Invalid organization or organization not approved.")
+
         if data.get('start_date') and data.get('end_date') and data['start_date'] > data['end_date']:
             raise serializers.ValidationError("Start date must be before end date.")
         if data.get('end_date') and data.get('submission_deadline') and data['submission_deadline'].date() > data['end_date']:
@@ -279,15 +294,19 @@ class CreateHackathonSerializer(HackathonSerializer):
         skills = validated_data.pop('skills', None)
         themes = validated_data.pop('themes', [])
         banner_image_file = validated_data.pop('banner_image_file', None)
-        
+        organization_id = validated_data.pop('organization_id')
+
         # Upload banner image to Cloudinary if provided
         if banner_image_file:
             banner_image_url = upload_image_to_cloudinary(banner_image_file, folder='hackathon_banners')
             validated_data['banner_image'] = banner_image_url
-        
+
+        from organization.models import Organization
+        organization = Organization.objects.get(id=organization_id)
+
         hackathon = Hackathon.objects.create(
             **validated_data,
-            organization=self.context['request'].user.organization
+            organization=organization
         )
         if skills is not None:
             hackathon.skills.set(skills)
