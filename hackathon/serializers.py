@@ -180,8 +180,16 @@ class ReviewSerializer(serializers.ModelSerializer):
         submission = data['submission']
         if submission.hackathon not in user.judged_hackathons.all():
             raise serializers.ValidationError("You are not authorized to review this submission.")
-        if Review.objects.filter(submission=submission, judge=user).exists():
+
+        # Only check for duplicate reviews when creating (not updating)
+        existing_review = Review.objects.filter(submission=submission, judge=user)
+        if self.instance:
+            # If updating, exclude the current instance
+            existing_review = existing_review.exclude(pk=self.instance.pk)
+
+        if existing_review.exists():
             raise serializers.ValidationError("You have already reviewed this submission.")
+
         # Validate all score fields are between 0 and 10
         for field in ['innovation_score', 'technical_score', 'user_experience_score', 'impact_score', 'presentation_score', 'overall_score']:
             value = data.get(field)
