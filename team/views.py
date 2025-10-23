@@ -203,3 +203,20 @@ class TeamViewSet(ModelViewSet):
             'team': TeamSerializer(result['team']).data
         }, status=status.HTTP_200_OK)
 
+    @swagger_auto_schema(
+        responses={
+            200: TeamSerializer,
+            404: "Team not found"
+        },
+        operation_description="Get team details by team ID",
+        tags=['teams']
+    )
+    @action(detail=True, methods=['get'])
+    def details(self, request, pk=None):
+        """Get team details by ID"""
+        try:
+            team = Team.objects.get(pk=pk)
+            return Response(TeamSerializer(team).data, status=status.HTTP_200_OK)
+        except Team.DoesNotExist:
+            return Response({'error': 'Team not found'}, status=status.HTTP_404_NOT_FOUND)
+
