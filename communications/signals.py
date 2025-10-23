@@ -61,20 +61,34 @@ def sync_judges_conversation_members(sender, instance: Hackathon, action, pk_set
 
 @receiver(post_save, sender=Message)
 def broadcast_new_message(sender, instance: Message, created: bool, **kwargs):
-    if not created:
+    if not created or instance.is_deleted:
         return
+
     # Lazy import to avoid circulars
     from asgiref.sync import async_to_sync
     from channels.layers import get_channel_layer
 
-    channel_layer = get_channel_layer()
-    group_name = f"conversation_{instance.conversation_id}"
-    payload = {
-        'id': instance.id,
-        'sender_id': instance.sender_id,
-        'sender_username': instance.sender.username,
-        'content': instance.content,
-        'created_at': instance.created_at.isoformat(),
-    }
-    async_to_sync(channel_layer.group_send)(group_name, { 'type': 'chat.message', 'payload': payload })
+    try:
+        channel_layer = get_channel_layer()
+        if not channel_layer:
+            return
+
+        group_name = f"conversation_{instance.conversation_id}"
+        payload = {
+            'id': instance.id,
+            'sender_id': instance.sender_id,
+            'sender_username': instance.sender.username,
+            'content': instance.content,
+            'created_at': instance.created_at.isoformat(),
+            'edited_at': instance.edited_at.isoformat() if instance.edited_at else None,
+        }
+        async_to_sync(channel_layer.group_send)(group_name, {
+            'type': 'chat.message',
+            'payload': payload
+        })
+    except Exception as e:
+        # Log error but don't fail the message creation
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to broadcast message {instance.id}: {e}")
 
