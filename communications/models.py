@@ -54,7 +54,7 @@ class ConversationParticipant(models.Model):
 class Message(models.Model):
     conversation = models.ForeignKey(Conversation, related_name='messages', on_delete=models.CASCADE)
     sender = models.ForeignKey('accounts.User', related_name='sent_messages', on_delete=models.CASCADE)
-    content = models.TextField()
+    content = models.TextField(blank=False)
     created_at = models.DateTimeField(auto_now_add=True)
     edited_at = models.DateTimeField(null=True, blank=True)
     is_deleted = models.BooleanField(default=False)
@@ -63,9 +63,22 @@ class Message(models.Model):
         ordering = ['created_at']
         indexes = [
             models.Index(fields=['conversation', 'created_at']),
+            models.Index(fields=['sender']),
+            models.Index(fields=['conversation', '-created_at']),
         ]
 
+    def __str__(self) -> str:
+        return f"Message from {self.sender.username} in {self.conversation}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if not self.content or not self.content.strip():
+            raise ValidationError("Message content cannot be empty")
+
     def edit(self, new_content: str):
+        if not new_content or not new_content.strip():
+            from django.core.exceptions import ValidationError
+            raise ValidationError("Message content cannot be empty")
         self.content = new_content
         self.edited_at = timezone.now()
         self.save(update_fields=['content', 'edited_at'])
