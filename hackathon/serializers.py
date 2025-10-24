@@ -19,34 +19,65 @@ class ThemeSerializer(serializers.ModelSerializer):
 
 
 class SubmitProjectSerializer(serializers.Serializer):
-    hackathon_id = serializers.IntegerField()
+    project_id = serializers.IntegerField()
 
-    def validate_hackathon_id(self, value):
+    def validate_project_id(self, value):
+        from project.models import Project
         request = self.context.get('request')
         if not request:
             raise serializers.ValidationError("Request context is required.")
+
         user = request.user
         try:
-            hackathon = Hackathon.objects.get(id=value)
+            project = Project.objects.select_related('team', 'hackathon').get(id=value)
+        except Project.DoesNotExist:
+            raise serializers.ValidationError("Project does not exist.")
+
+        # Check if user is a member of the project's team
+        if not project.team.members.filter(id=user.id).exists():
+            raise serializers.ValidationError("You are not a member of this project's team.")
+
+        return value
+
+    def validate(self, attrs):
+        from project.models import Project
+        project_id = attrs['project_id']
+        hackathon_id = self.context.get('hackathon_id')
+
+        if not hackathon_id:
+            raise serializers.ValidationError("Hackathon ID is required in context.")
+
+        try:
+            project = Project.objects.select_related('team', 'hackathon').get(id=project_id)
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Project.DoesNotExist:
+            raise serializers.ValidationError("Project does not exist.")
         except Hackathon.DoesNotExist:
             raise serializers.ValidationError("Hackathon does not exist.")
-        return value
+
+        # Validation checks
+        if Submission.objects.filter(project=project, hackathon=hackathon).exists():
+            raise serializers.ValidationError("This project is already submitted to this hackathon.")
+
+        if project.hackathon != hackathon:
+            raise serializers.ValidationError("This project does not belong to this hackathon.")
+
+        if project.team.hackathon != hackathon:
+            raise serializers.ValidationError("Your team is not registered for this hackathon.")
+
+        if hackathon.submission_deadline and hackathon.submission_deadline < timezone.now():
+            raise serializers.ValidationError("Hackathon submission period has ended.")
+
+        return attrs
 
     def save(self, **kwargs):
         from project.models import Project
-        project_id = self.context.get('project_id')
-        project = Project.objects.get(id=project_id)
-        hackathon = Hackathon.objects.get(id=self.validated_data['hackathon_id'])
-        
-        if Submission.objects.filter(project=project, hackathon=hackathon).exists():
-            raise serializers.ValidationError("This project is already submitted to this hackathon.")
-        if project.hackathon != hackathon:
-            raise serializers.ValidationError("This project does not belong to this hackathon.")
-        if project.team.hackathon != hackathon:
-            raise serializers.ValidationError("Your team is not registered for this hackathon.")
-        if hackathon.submission_deadline < timezone.now():
-            raise serializers.ValidationError("Hackathon submission period has ended.")
-        
+        project_id = self.validated_data['project_id']
+        hackathon_id = self.context.get('hackathon_id')
+
+        project = Project.objects.select_related('team', 'hackathon').get(id=project_id)
+        hackathon = Hackathon.objects.get(id=hackathon_id)
+
         submission = Submission.objects.create(project=project, hackathon=hackathon, team=project.team)
         return submission
 

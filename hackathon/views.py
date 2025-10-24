@@ -358,30 +358,32 @@ class SubmitProjectView(GenericAPIView):
         operation_description="Submit a project to a hackathon.",
         tags=['projects']
     )
-    def post(self, request, project_id):
+    def post(self, request, hackathon_id):
         from project.models import Project
+
+        # Get hackathon
         try:
-            project = Project.objects.get(id=project_id)
-        except Project.DoesNotExist:
-            return Response({"error": "Project does not exist."}, status=status.HTTP_404_NOT_FOUND)
-        if project.team not in request.user.teams.all():
-            return Response({"error": "You are not a member of this project's team."}, status=status.HTTP_403_FORBIDDEN)
-        serializer = self.serializer_class(data=request.data, context={'request': request, 'project_id': project_id})
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = self.serializer_class(data=request.data, context={'request': request, 'hackathon_id': hackathon_id})
         serializer.is_valid(raise_exception=True)
         submission = serializer.save()
+
         # Send notification to team members
-        for member in project.team.members.all():
+        for member in submission.team.members.all():
             NotificationService.send_notification(
                 user=member,
                 title="Project Submission Successful",
-                message=f"Your project '{project.title}' has been submitted to '{submission.hackathon.title}'.",
+                message=f"Your project '{submission.project.title}' has been submitted to '{submission.hackathon.title}'.",
                 category='account',
                 priority='normal',
                 send_email=True,
                 send_in_app=True,
                 data={
-                    'project_id': project.id,
-                    'project_title': project.title,
+                    'project_id': submission.project.id,
+                    'project_title': submission.project.title,
                     'submission_id': submission.id,
                     'hackathon_id': submission.hackathon.id,
                     'hackathon_title': submission.hackathon.title

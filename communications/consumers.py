@@ -27,25 +27,39 @@ class ConversationConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data: str | bytes | None = None, bytes_data: bytes | None = None):
         if not text_data:
             return
-        data = json.loads(text_data)
+
+        try:
+            data = json.loads(text_data)
+        except json.JSONDecodeError:
+            await self.send(text_data=json.dumps({
+                'event': 'error',
+                'data': {'message': 'Invalid JSON'}
+            }))
+            return
+
         action = data.get('action')
         if action == 'send_message':
             content = data.get('content', '').strip()
-            if content:
+            if not content:
+                await self.send(text_data=json.dumps({
+                    'event': 'error',
+                    'data': {'message': 'Content cannot be empty'}
+                }))
+                return
+
+            try:
                 message = await self._create_message(content)
-                await self.channel_layer.group_send(
-                    self.group_name,
-                    {
-                        'type': 'chat.message',
-                        'payload': {
-                            'id': message['id'],
-                            'sender_id': message['sender_id'],
-                            'sender_username': message['sender_username'],
-                            'content': message['content'],
-                            'created_at': message['created_at'],
-                        }
-                    }
-                )
+                # Don't send via channel layer here - signal will handle broadcast
+            except PermissionError as e:
+                await self.send(text_data=json.dumps({
+                    'event': 'error',
+                    'data': {'message': str(e)}
+                }))
+            except Exception as e:
+                await self.send(text_data=json.dumps({
+                    'event': 'error',
+                    'data': {'message': 'Failed to send message'}
+                }))
 
     async def chat_message(self, event: dict[str, Any]):
         await self.send(text_data=json.dumps({
@@ -61,7 +75,20 @@ class ConversationConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def _create_message(self, content: str):
-        msg = Message.objects.create(conversation_id=self.conversation_id, sender=self.scope['user'], content=content)
+        # Check if user can post
+        participant = ConversationParticipant.objects.filter(
+            conversation_id=self.conversation_id,
+            user=self.scope['user']
+        ).first()
+
+        if not participant or not participant.can_post:
+            raise PermissionError("You are not allowed to post in this conversation.")
+
+        msg = Message.objects.create(
+            conversation_id=self.conversation_id,
+            sender=self.scope['user'],
+            content=content
+        )
         return {
             'id': msg.id,
             'sender_id': msg.sender_id,

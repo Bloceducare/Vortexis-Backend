@@ -1,9 +1,12 @@
 from django.db import transaction, models
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError, PermissionDenied, NotFound
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 from .models import Conversation, ConversationParticipant, Message
 from .serializers import (
@@ -29,19 +32,42 @@ class ConversationViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return Conversation.objects.none()
 
-        return Conversation.objects.filter(participants__user=user).distinct()
+        # Optimize queries with select_related and prefetch_related
+        return Conversation.objects.filter(
+            participants__user=user
+        ).select_related(
+            'team', 'hackathon', 'organization', 'created_by'
+        ).prefetch_related(
+            'participants__user',
+            Prefetch(
+                'messages',
+                queryset=Message.objects.select_related('sender').order_by('-created_at')[:1],
+                to_attr='_prefetched_last_message_list'
+            )
+        ).distinct()
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
+    @swagger_auto_schema(
+        request_body=CreateDMSerializer,
+        responses={
+            200: ConversationSerializer,
+            201: ConversationSerializer,
+            400: "Bad Request - validation errors"
+        },
+        operation_description="Create or retrieve a direct message conversation with another user",
+        tags=['communications']
+    )
     @action(detail=False, methods=['post'], url_path='dm')
     def create_dm(self, request):
         serializer = CreateDMSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         target_user_id = serializer.validated_data['user_id']
         user = request.user
+
         if target_user_id == user.id:
-            return Response({"detail": "Cannot create DM with yourself."}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError("Cannot create DM with yourself.")
 
         # Check if a DM already exists between the two users
         existing = Conversation.objects.filter(
@@ -50,7 +76,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
         ).annotate(num_participants=models.Count('participants')).filter(num_participants=2).first()
 
         if existing:
-            return Response(ConversationSerializer(existing).data)
+            return Response(ConversationSerializer(existing).data, status=status.HTTP_200_OK)
 
         with transaction.atomic():
             conv = Conversation.objects.create(type='dm', created_by=user)
@@ -60,6 +86,18 @@ class ConversationViewSet(viewsets.ModelViewSet):
             ])
         return Response(ConversationSerializer(conv).data, status=status.HTTP_201_CREATED)
 
+    @swagger_auto_schema(
+        request_body=CreateTeamConversationSerializer,
+        responses={
+            200: ConversationSerializer,
+            201: ConversationSerializer,
+            400: "Bad Request - validation errors",
+            403: "Forbidden - not authorized for this team",
+            404: "Team not found"
+        },
+        operation_description="Create or retrieve a team conversation",
+        tags=['communications']
+    )
     @action(detail=False, methods=['post'], url_path='team')
     def create_team_conversation(self, request):
         from team.models import Team
@@ -68,9 +106,13 @@ class ConversationViewSet(viewsets.ModelViewSet):
         team_id = serializer.validated_data['team_id']
         user = request.user
 
-        team = Team.objects.select_related('hackathon').prefetch_related('members').get(id=team_id)
+        try:
+            team = Team.objects.select_related('hackathon').prefetch_related('members').get(id=team_id)
+        except Team.DoesNotExist:
+            raise NotFound("Team not found")
+
         if not team.members.filter(id=user.id).exists() and team.organizer_id != user.id:
-            return Response({"detail": "Not authorized for this team."}, status=status.HTTP_403_FORBIDDEN)
+            raise PermissionDenied("Not authorized for this team.")
 
         conv, created = Conversation.objects.get_or_create(type='team', team=team, defaults={
             'created_by': user,
@@ -82,12 +124,28 @@ class ConversationViewSet(viewsets.ModelViewSet):
             ConversationParticipant.objects.bulk_create([
                 ConversationParticipant(conversation=conv, user=member, is_admin=(member.id == team.organizer_id))
                 for member in team.members.all()
-            ])
+            ], ignore_conflicts=True)
             if team.organizer_id and not team.members.filter(id=team.organizer_id).exists():
-                ConversationParticipant.objects.create(conversation=conv, user_id=team.organizer_id, is_admin=True)
+                ConversationParticipant.objects.get_or_create(
+                    conversation=conv,
+                    user_id=team.organizer_id,
+                    defaults={'is_admin': True}
+                )
 
         return Response(ConversationSerializer(conv).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
+    @swagger_auto_schema(
+        request_body=CreateJudgesConversationSerializer,
+        responses={
+            200: ConversationSerializer,
+            201: ConversationSerializer,
+            400: "Bad Request - validation errors",
+            403: "Forbidden - not authorized to create judges conversation",
+            404: "Hackathon not found"
+        },
+        operation_description="Create or retrieve a judges conversation for a hackathon",
+        tags=['communications']
+    )
     @action(detail=False, methods=['post'], url_path='judges')
     def create_judges_conversation(self, request):
         from hackathon.models import Hackathon
@@ -99,19 +157,28 @@ class ConversationViewSet(viewsets.ModelViewSet):
         include_org_members = serializer.validated_data['include_org_members']
 
         user = request.user
-        hackathon = Hackathon.objects.select_related('organization').prefetch_related('judges').get(id=hackathon_id)
+
+        try:
+            hackathon = Hackathon.objects.select_related('organization').prefetch_related('judges', 'organization__moderators').get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            raise NotFound("Hackathon not found")
 
         # Authorization: judges or organizers of this hackathon/org
         is_judge = hackathon.judges.filter(id=user.id).exists()
         is_organizer = False
         if hackathon.organization and (hackathon.organization.organizer_id == user.id or hackathon.organization.moderators.filter(id=user.id).exists()):
             is_organizer = True
+
         if not (is_judge or is_organizer):
-            return Response({"detail": "Not authorized to create judges conversation."}, status=status.HTTP_403_FORBIDDEN)
+            raise PermissionDenied("Not authorized to create judges conversation.")
 
         conv, created = Conversation.objects.get_or_create(
             type='judges', hackathon=hackathon,
-            defaults={'created_by': user, 'organization': hackathon.organization}
+            defaults={
+                'created_by': user,
+                'organization': hackathon.organization,
+                'title': f"Judges: {hackathon.title}"
+            }
         )
 
         if created:
@@ -122,9 +189,13 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 participants.update(hackathon.organization.moderators.values_list('id', flat=True))
 
             ConversationParticipant.objects.bulk_create([
-                ConversationParticipant(conversation=conv, user_id=uid, is_admin=True if uid == hackathon.organization.organizer_id else False)
+                ConversationParticipant(
+                    conversation=conv,
+                    user_id=uid,
+                    is_admin=True if (hackathon.organization and uid == hackathon.organization.organizer_id) else False
+                )
                 for uid in participants
-            ])
+            ], ignore_conflicts=True)
 
         return Response(ConversationSerializer(conv).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
@@ -133,19 +204,54 @@ class MessageViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.Ge
     serializer_class = MessageSerializer
     permission_classes = [IsAuthenticated]
 
+    @property
+    def paginator(self):
+        from rest_framework.pagination import PageNumberPagination
+
+        class MessagePagination(PageNumberPagination):
+            page_size = 50
+            page_size_query_param = 'page_size'
+            max_page_size = 100
+
+        if not hasattr(self, '_paginator'):
+            self._paginator = MessagePagination()
+        return self._paginator
+
     def get_queryset(self):
         user = self.request.user
         conversation_id = self.kwargs.get('conversation_pk')
-        qs = Message.objects.select_related('conversation').filter(conversation_id=conversation_id)
+
         # Ensure user is participant
         if not ConversationParticipant.objects.filter(conversation_id=conversation_id, user=user).exists():
             return Message.objects.none()
-        return qs
+
+        # Optimize query with select_related
+        return Message.objects.select_related('sender', 'conversation').filter(
+            conversation_id=conversation_id,
+            is_deleted=False
+        ).order_by('created_at')
 
     def perform_create(self, serializer):
         conversation_id = self.kwargs.get('conversation_pk')
         user = self.request.user
-        if not ConversationParticipant.objects.filter(conversation_id=conversation_id, user=user, can_post=True).exists():
-            raise PermissionError("You are not allowed to post in this conversation.")
+
+        # Check if conversation exists
+        try:
+            conversation = Conversation.objects.get(id=conversation_id)
+        except Conversation.DoesNotExist:
+            raise NotFound("Conversation not found")
+
+        # Check if user can post
+        participant = ConversationParticipant.objects.filter(
+            conversation_id=conversation_id,
+            user=user
+        ).first()
+
+        if not participant:
+            raise PermissionDenied("You are not a participant in this conversation.")
+
+        if not participant.can_post:
+            raise PermissionDenied("You are not allowed to post in this conversation.")
+
         serializer.save(sender=user, conversation_id=conversation_id)
 
