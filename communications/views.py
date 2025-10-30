@@ -120,17 +120,19 @@ class ConversationViewSet(viewsets.ModelViewSet):
             'title': f"Team: {team.name}",
         })
 
-        if created:
-            ConversationParticipant.objects.bulk_create([
-                ConversationParticipant(conversation=conv, user=member, is_admin=(member.id == team.organizer_id))
-                for member in team.members.all()
-            ], ignore_conflicts=True)
-            if team.organizer_id and not team.members.filter(id=team.organizer_id).exists():
-                ConversationParticipant.objects.get_or_create(
-                    conversation=conv,
-                    user_id=team.organizer_id,
-                    defaults={'is_admin': True}
-                )
+        # Always sync participants to ensure new team members are included
+        ConversationParticipant.objects.bulk_create([
+            ConversationParticipant(conversation=conv, user=member, is_admin=(member.id == team.organizer_id))
+            for member in team.members.all()
+        ], ignore_conflicts=True)
+
+        # Ensure team organizer is always a participant
+        if team.organizer_id and not team.members.filter(id=team.organizer_id).exists():
+            ConversationParticipant.objects.get_or_create(
+                conversation=conv,
+                user_id=team.organizer_id,
+                defaults={'is_admin': True}
+            )
 
         return Response(ConversationSerializer(conv).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
@@ -181,21 +183,23 @@ class ConversationViewSet(viewsets.ModelViewSet):
             }
         )
 
-        if created:
-            participants = set(hackathon.judges.values_list('id', flat=True))
-            if include_organizers and hackathon.organization and hackathon.organization.organizer_id:
-                participants.add(hackathon.organization.organizer_id)
-            if include_org_members and hackathon.organization:
-                participants.update(hackathon.organization.moderators.values_list('id', flat=True))
+        # Always sync participants, not just on creation
+        # This ensures newly added judges are included in existing conversations
+        participants = set(hackathon.judges.values_list('id', flat=True))
+        if include_organizers and hackathon.organization and hackathon.organization.organizer_id:
+            participants.add(hackathon.organization.organizer_id)
+        if include_org_members and hackathon.organization:
+            participants.update(hackathon.organization.moderators.values_list('id', flat=True))
 
-            ConversationParticipant.objects.bulk_create([
-                ConversationParticipant(
-                    conversation=conv,
-                    user_id=uid,
-                    is_admin=True if (hackathon.organization and uid == hackathon.organization.organizer_id) else False
-                )
-                for uid in participants
-            ], ignore_conflicts=True)
+        # Add any missing participants
+        ConversationParticipant.objects.bulk_create([
+            ConversationParticipant(
+                conversation=conv,
+                user_id=uid,
+                is_admin=True if (hackathon.organization and uid == hackathon.organization.organizer_id) else False
+            )
+            for uid in participants
+        ], ignore_conflicts=True)
 
         return Response(ConversationSerializer(conv).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
