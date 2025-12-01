@@ -80,7 +80,13 @@ class HackathonListView(ListCreateAPIView):
     serializer_class = HackathonSerializer
 
     def get_queryset(self):
-        return Hackathon.objects.filter(visibility=True)  # Only show public hackathons
+        return Hackathon.objects.filter(
+            visibility=True
+        ).select_related(
+            'organization', 'organization__organizer'
+        ).prefetch_related(
+            'themes', 'skills', 'judges'
+        ).order_by('-created_at')  # Latest first
 
     def get_permissions(self):
         if self.request.method == 'GET':
@@ -411,11 +417,22 @@ class SubmissionViewSet(ModelViewSet):
         if getattr(self, 'swagger_fake_view', False):
             return Submission.objects.none()
         hackathon_id = self.kwargs.get('hackathon_id')
+        
+        # Base queryset with optimizations
+        base_queryset = Submission.objects.select_related(
+            'project', 'hackathon', 'hackathon__organization', 'team', 'team__organizer'
+        ).prefetch_related(
+            'team__members', 'reviews', 'reviews__judge'
+        )
+        
         if not hackathon_id:
-            return Submission.objects.filter(team__members=self.request.user)
-        if self.request.user.is_organizer or self.request.user.is_judge:
-            return Submission.objects.filter(hackathon_id=hackathon_id)
-        return Submission.objects.filter(hackathon_id=hackathon_id, team__members=self.request.user)
+            queryset = base_queryset.filter(team__members=self.request.user)
+        elif self.request.user.is_organizer or self.request.user.is_judge:
+            queryset = base_queryset.filter(hackathon_id=hackathon_id)
+        else:
+            queryset = base_queryset.filter(hackathon_id=hackathon_id, team__members=self.request.user)
+        
+        return queryset.order_by('-created_at')
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -481,18 +498,38 @@ class ReviewViewSet(ModelViewSet):
         if getattr(self, 'swagger_fake_view', False):
             return Review.objects.none()
         hackathon_id = self.kwargs.get('hackathon_id')
+        
+        # Base queryset with optimizations
+        base_queryset = Review.objects.select_related(
+            'submission', 'submission__project', 'submission__hackathon',
+            'submission__hackathon__organization', 'submission__team', 'judge'
+        )
+        
         if not hackathon_id:
-            return Review.objects.filter(judge=self.request.user)
-        return Review.objects.filter(submission__hackathon_id=hackathon_id, judge=self.request.user)
+            queryset = base_queryset.filter(judge=self.request.user)
+        else:
+            queryset = base_queryset.filter(submission__hackathon_id=hackathon_id, judge=self.request.user)
+        
+        return queryset.order_by('-created_at')
 
     def perform_create(self, serializer):
         serializer.save(judge=self.request.user)
-        # Update submission status to reviewed
+        # Update submission status to reviewed only when ALL judges have reviewed
         review = serializer.instance
         submission = review.submission
-        if submission.status == 'pending':
+        hackathon = submission.hackathon
+        
+        # Get all judges assigned to this hackathon
+        all_judges = set(hackathon.judges.values_list('id', flat=True))
+        
+        # Get all judges who have reviewed this submission
+        reviewed_judges = set(Review.objects.filter(submission=submission).values_list('judge_id', flat=True))
+        
+        # Only mark as 'reviewed' if all judges have completed their reviews
+        if submission.status == 'pending' and all_judges and reviewed_judges == all_judges:
             submission.status = 'reviewed'
             submission.save()
+        
         # Send review notification to submission team
         for member in review.submission.team.members.all():
             NotificationService.send_notification(
@@ -515,6 +552,24 @@ class ReviewViewSet(ModelViewSet):
                 action_text='View Review'
             )
 
+    def perform_update(self, serializer):
+        serializer.save()
+        # Update submission status to reviewed only when ALL judges have reviewed
+        review = serializer.instance
+        submission = review.submission
+        hackathon = submission.hackathon
+        
+        # Get all judges assigned to this hackathon
+        all_judges = set(hackathon.judges.values_list('id', flat=True))
+        
+        # Get all judges who have reviewed this submission
+        reviewed_judges = set(Review.objects.filter(submission=submission).values_list('judge_id', flat=True))
+        
+        # Only mark as 'reviewed' if all judges have completed their reviews
+        if submission.status == 'pending' and all_judges and reviewed_judges == all_judges:
+            submission.status = 'reviewed'
+            submission.save()
+
 
 class JudgeAllReviewsView(APIView):
     permission_classes = [IsAuthenticated, IsJudge]
@@ -529,7 +584,14 @@ class JudgeAllReviewsView(APIView):
         tags=['reviews']
     )
     def get(self, request):
-        reviews = Review.objects.filter(judge=request.user).select_related('submission__hackathon', 'submission__project', 'submission__team')
+        reviews = Review.objects.filter(
+            judge=request.user
+        ).select_related(
+            'submission__hackathon', 'submission__hackathon__organization',
+            'submission__project', 'submission__team', 'submission__team__organizer'
+        ).prefetch_related(
+            'submission__team__members'
+        ).order_by('-created_at')
         serializer = ReviewSerializer(reviews, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -632,8 +694,14 @@ class OrganizerHackathonsView(APIView):
         if not user_orgs.exists():
             return Response({"error": "You don't have an organization."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Get all hackathons from user's organizations
-        hackathons = Hackathon.objects.filter(organization__in=user_orgs)
+        # Get all hackathons from user's organizations with optimizations
+        hackathons = Hackathon.objects.filter(
+            organization__in=user_orgs
+        ).select_related(
+            'organization', 'organization__organizer'
+        ).prefetch_related(
+            'themes', 'skills', 'judges'
+        ).order_by('-created_at')
         serializer = HackathonSerializer(hackathons, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -659,8 +727,14 @@ class OrganizationHackathonsView(APIView):
         except Organization.DoesNotExist:
             return Response({"error": "Organization not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Get all hackathons for this organization
-        hackathons = Hackathon.objects.filter(organization=organization)
+        # Get all hackathons for this organization with optimizations
+        hackathons = Hackathon.objects.filter(
+            organization=organization
+        ).select_related(
+            'organization', 'organization__organizer'
+        ).prefetch_related(
+            'themes', 'skills', 'judges'
+        ).order_by('-created_at')
         serializer = HackathonSerializer(hackathons, many=True)
         return Response({
             "organization": {

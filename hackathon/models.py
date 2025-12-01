@@ -59,6 +59,15 @@ class Submission(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['-created_at'], name='sub_created_idx'),
+            models.Index(fields=['hackathon', '-created_at'], name='sub_hackathon_idx'),
+            models.Index(fields=['team', '-created_at'], name='sub_team_idx'),
+            models.Index(fields=['status', '-created_at'], name='sub_status_idx'),
+        ]
+        ordering = ['-created_at']
+
     def __str__(self):
         return self.project.title
 
@@ -74,6 +83,14 @@ class Review(models.Model):
     review = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['-created_at'], name='rev_created_idx'),
+            models.Index(fields=['judge', '-created_at'], name='rev_judge_idx'),
+            models.Index(fields=['submission', '-created_at'], name='rev_submission_idx'),
+        ]
+        ordering = ['-created_at']
 
     def __str__(self):
         return f"{self.judge.username}'s review for {self.submission.project.title}"

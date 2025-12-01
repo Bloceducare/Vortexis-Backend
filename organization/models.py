@@ -1,16 +1,44 @@
 from django.db import models
 from django.utils import timezone
+from django.core.validators import URLValidator
 from datetime import timedelta
 import secrets
+import re
 
 class Organization(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=128, unique=True)
     description = models.TextField()
+    website = models.URLField(max_length=200, blank=True, null=True, validators=[URLValidator()])
+    logo = models.URLField(max_length=500, blank=True, null=True)
+    custom_url = models.CharField(max_length=128, unique=True, blank=True, null=True)
+    location = models.CharField(max_length=32, blank=True, null=True)
+    tagline = models.CharField(max_length=200, blank=True, null=True)
+    about = models.TextField(max_length=5000, blank=True, null=True)
     organizer = models.ForeignKey('accounts.User', related_name='organizations', on_delete=models.SET_NULL, null=True)
     moderators = models.ManyToManyField('accounts.User', related_name='moderating_organization', blank=True)
     is_approved = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        # Validate custom_url format if provided
+        if self.custom_url:
+            if not re.match(r'^[a-zA-Z0-9_-]+$', self.custom_url):
+                raise models.ValidationError({
+                    'custom_url': 'Custom URL can only contain letters, numbers, hyphens, and underscores.'
+                })
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['-created_at'], name='org_created_idx'),
+            models.Index(fields=['is_approved', '-created_at'], name='org_approved_idx'),
+            models.Index(fields=['organizer', '-created_at'], name='org_organizer_idx'),
+        ]
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name

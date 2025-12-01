@@ -15,6 +15,12 @@ class Team(models.Model):
 
     class Meta:
         unique_together = [('name', 'hackathon'), ('organizer', 'hackathon')]
+        indexes = [
+            models.Index(fields=['-created_at'], name='team_created_idx'),
+            models.Index(fields=['hackathon', '-created_at'], name='team_hackathon_idx'),
+            models.Index(fields=['organizer', '-created_at'], name='team_organizer_idx'),
+        ]
+        ordering = ['-created_at']
 
     def __str__(self):
         return f"{self.name} - {self.hackathon.title}"

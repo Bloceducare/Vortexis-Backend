@@ -39,16 +39,25 @@ class ProjectViewSet(ModelViewSet):
         if getattr(self, 'swagger_fake_view', False):
             return Project.objects.none()
         
+        # Base queryset with optimizations
+        base_queryset = Project.objects.select_related(
+            'team', 'team__organizer', 'hackathon', 'hackathon__organization'
+        ).prefetch_related(
+            'team__members'
+        )
+        
         hackathon_id = self.kwargs.get('hackathon_id')
         if hackathon_id:
             # Filter by hackathon and user's teams
-            return Project.objects.filter(
+            queryset = base_queryset.filter(
                 hackathon_id=hackathon_id,
                 team__members=self.request.user
             )
+        else:
+            # Return all projects for user's teams
+            queryset = base_queryset.filter(team__members=self.request.user)
         
-        # Return all projects for user's teams
-        return Project.objects.filter(team__members=self.request.user)
+        return queryset.order_by('-created_at')
     
     def perform_create(self, serializer):
         hackathon_id = self.kwargs.get('hackathon_id')

@@ -3,6 +3,8 @@ from .models import Organization, ModeratorInvitation
 from accounts.models import User
 from notifications.services import NotificationService
 from django.utils import timezone
+from utils.cloudinary_utils import upload_image_to_cloudinary
+import re
 
 class ApproveOrganizationSerializer(serializers.Serializer):
     """Empty serializer for the approve organization endpoint."""
@@ -14,24 +16,89 @@ class OrganizationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Organization
-        fields = ['id', 'name', 'description', 'organizer', 'moderators', 'is_approved', 'created_at', 'updated_at']
+        fields = [
+            'id', 'name', 'description', 'website', 'logo', 'custom_url', 
+            'location', 'tagline', 'about', 'organizer', 'moderators', 
+            'is_approved', 'created_at', 'updated_at'
+        ]
         read_only_fields = ['id', 'is_approved', 'created_at', 'updated_at']
 
 class CreateOrganizationSerializer(serializers.ModelSerializer):
+    logo_file = serializers.ImageField(write_only=True, required=False)
+    
     class Meta:
         model = Organization
-        fields = ['name', 'description']
+        fields = [
+            'name', 'description', 'website', 'logo_file', 'custom_url', 
+            'location', 'tagline', 'about'
+        ]
+        extra_kwargs = {
+            'logo': {'read_only': True},
+            'website': {'required': False, 'allow_blank': True},
+            'custom_url': {'required': False, 'allow_blank': True},
+            'location': {'required': False, 'allow_blank': True},
+            'tagline': {'required': False, 'allow_blank': True},
+            'about': {'required': False, 'allow_blank': True},
+        }
+
+    def validate_name(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Name cannot be empty.")
+        if len(value) > 128:
+            raise serializers.ValidationError("Name cannot exceed 128 characters.")
+        return value.strip()
+
+    def validate_description(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Description cannot be empty.")
+        return value.strip()
+
+    def validate_website(self, value):
+        if value and not value.startswith(('http://', 'https://')):
+            raise serializers.ValidationError("Website URL must start with http:// or https://")
+        return value
+
+    def validate_custom_url(self, value):
+        if value:
+            if len(value) > 128:
+                raise serializers.ValidationError("Custom URL cannot exceed 128 characters.")
+            if not re.match(r'^[a-zA-Z0-9_-]+$', value):
+                raise serializers.ValidationError(
+                    "Custom URL can only contain letters, numbers, hyphens, and underscores."
+                )
+            # Check if custom_url already exists
+            if Organization.objects.filter(custom_url=value).exists():
+                raise serializers.ValidationError("This custom URL is already taken.")
+        return value
+
+    def validate_location(self, value):
+        if value and len(value) > 32:
+            raise serializers.ValidationError("Location cannot exceed 32 characters.")
+        return value
+
+    def validate_tagline(self, value):
+        if value and len(value) > 200:
+            raise serializers.ValidationError("Tagline cannot exceed 200 characters.")
+        return value
+
+    def validate_about(self, value):
+        if value and len(value) > 5000:
+            raise serializers.ValidationError("About cannot exceed 5000 characters.")
+        return value
 
     def validate(self, data):
         if not self.context.get('request'):
             raise serializers.ValidationError("Request context is required.")
-        if not data.get('name').strip():
-            raise serializers.ValidationError("Name cannot be empty.")
-        if not data.get('description').strip():
-            raise serializers.ValidationError("Description cannot be empty.")
         return data
 
     def create(self, validated_data):
+        logo_file = validated_data.pop('logo_file', None)
+        
+        # Upload logo to Cloudinary if provided
+        if logo_file:
+            logo_url = upload_image_to_cloudinary(logo_file, folder='organization_logos')
+            validated_data['logo'] = logo_url
+        
         user = self.context['request'].user
         organization = Organization.objects.create(
             **validated_data,
@@ -55,16 +122,81 @@ class CreateOrganizationSerializer(serializers.ModelSerializer):
         return organization
 
 class UpdateOrganizationSerializer(serializers.ModelSerializer):
+    logo_file = serializers.ImageField(write_only=True, required=False)
+    
     class Meta:
         model = Organization
-        fields = ['name', 'description']
-        extra_kwargs = {'name': {'required': False}, 'description': {'required': False}}
+        fields = [
+            'name', 'description', 'website', 'logo_file', 'custom_url', 
+            'location', 'tagline', 'about'
+        ]
+        extra_kwargs = {
+            'logo': {'read_only': True},
+            'name': {'required': False},
+            'description': {'required': False},
+            'website': {'required': False, 'allow_blank': True},
+            'custom_url': {'required': False, 'allow_blank': True},
+            'location': {'required': False, 'allow_blank': True},
+            'tagline': {'required': False, 'allow_blank': True},
+            'about': {'required': False, 'allow_blank': True},
+        }
+
+    def validate_name(self, value):
+        if value and len(value) > 128:
+            raise serializers.ValidationError("Name cannot exceed 128 characters.")
+        return value.strip() if value else value
+
+    def validate_website(self, value):
+        if value and not value.startswith(('http://', 'https://')):
+            raise serializers.ValidationError("Website URL must start with http:// or https://")
+        return value
+
+    def validate_custom_url(self, value):
+        if value:
+            if len(value) > 128:
+                raise serializers.ValidationError("Custom URL cannot exceed 128 characters.")
+            if not re.match(r'^[a-zA-Z0-9_-]+$', value):
+                raise serializers.ValidationError(
+                    "Custom URL can only contain letters, numbers, hyphens, and underscores."
+                )
+            # Check if custom_url already exists (excluding current instance)
+            if Organization.objects.filter(custom_url=value).exclude(id=self.instance.id).exists():
+                raise serializers.ValidationError("This custom URL is already taken.")
+        return value
+
+    def validate_location(self, value):
+        if value and len(value) > 32:
+            raise serializers.ValidationError("Location cannot exceed 32 characters.")
+        return value
+
+    def validate_tagline(self, value):
+        if value and len(value) > 200:
+            raise serializers.ValidationError("Tagline cannot exceed 200 characters.")
+        return value
+
+    def validate_about(self, value):
+        if value and len(value) > 5000:
+            raise serializers.ValidationError("About cannot exceed 5000 characters.")
+        return value
 
     def validate(self, data):
         user = self.context['request'].user
         if self.instance.organizer != user:
             raise serializers.ValidationError("You are not authorized to update this organization.")
         return data
+
+    def update(self, instance, validated_data):
+        logo_file = validated_data.pop('logo_file', None)
+        
+        # Upload new logo to Cloudinary if provided
+        if logo_file:
+            logo_url = upload_image_to_cloudinary(logo_file, folder='organization_logos')
+            validated_data['logo'] = logo_url
+        
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
 
 class AddModeratorSerializer(serializers.Serializer):
     moderators = serializers.SlugRelatedField(many=True, slug_field='username', queryset=User.objects.all())

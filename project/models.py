@@ -15,6 +15,12 @@ class Project(models.Model):
 
     class Meta:
         unique_together = [('team', 'hackathon')]
+        indexes = [
+            models.Index(fields=['-created_at'], name='proj_created_idx'),
+            models.Index(fields=['hackathon', '-created_at'], name='proj_hackathon_idx'),
+            models.Index(fields=['team', '-created_at'], name='proj_team_idx'),
+        ]
+        ordering = ['-created_at']
 
     def __str__(self):
         return self.title

@@ -44,7 +44,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 queryset=Message.objects.select_related('sender').order_by('-created_at')[:1],
                 to_attr='_prefetched_last_message_list'
             )
-        ).distinct()
+        ).distinct().order_by('-updated_at')  # Order by most recently updated
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -204,7 +204,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
         return Response(ConversationSerializer(conv).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 
-class MessageViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet):
+class MessageViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.UpdateModelMixin, viewsets.GenericViewSet):
     serializer_class = MessageSerializer
     permission_classes = [IsAuthenticated]
 
@@ -230,10 +230,27 @@ class MessageViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.Ge
             return Message.objects.none()
 
         # Optimize query with select_related
-        return Message.objects.select_related('sender', 'conversation').filter(
-            conversation_id=conversation_id,
-            is_deleted=False
-        ).order_by('created_at')
+        # Include deleted messages for the owner to allow viewing their own deleted messages
+        queryset = Message.objects.select_related('sender', 'conversation').filter(
+            conversation_id=conversation_id
+        )
+        
+        # Filter out deleted messages unless user is the sender
+        if self.action == 'list':
+            queryset = queryset.filter(
+                Q(is_deleted=False) | Q(sender=user, is_deleted=True)
+            )
+        
+        return queryset.order_by('created_at')
+
+    def get_object(self):
+        obj = super().get_object()
+        # Ensure user is participant in the conversation
+        conversation_id = self.kwargs.get('conversation_pk')
+        user = self.request.user
+        if not ConversationParticipant.objects.filter(conversation_id=conversation_id, user=user).exists():
+            raise PermissionDenied("You are not a participant in this conversation.")
+        return obj
 
     def perform_create(self, serializer):
         conversation_id = self.kwargs.get('conversation_pk')
@@ -258,4 +275,46 @@ class MessageViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.Ge
             raise PermissionDenied("You are not allowed to post in this conversation.")
 
         serializer.save(sender=user, conversation_id=conversation_id)
+
+    def perform_update(self, serializer):
+        message = self.get_object()
+        user = self.request.user
+        
+        # Only the sender can edit their message
+        if message.sender != user:
+            raise PermissionDenied("You can only edit your own messages.")
+        
+        # Check if message is deleted
+        if message.is_deleted:
+            raise ValidationError("Cannot edit a deleted message.")
+        
+        # Use the model's edit method
+        new_content = serializer.validated_data.get('content')
+        if new_content:
+            message.edit(new_content)
+            # Update the serializer instance
+            serializer.instance = message
+
+    @swagger_auto_schema(
+        responses={
+            204: "Message deleted successfully",
+            403: "Forbidden - not the message sender",
+            404: "Message not found"
+        },
+        operation_description="Delete a message (soft delete). Only the sender can delete their own message.",
+        tags=['communications']
+    )
+    @action(detail=True, methods=['delete'])
+    def delete_message(self, request, conversation_pk=None, pk=None):
+        message = self.get_object()
+        user = request.user
+        
+        # Only the sender can delete their message
+        if message.sender != user:
+            raise PermissionDenied("You can only delete your own messages.")
+        
+        # Soft delete the message
+        message.soft_delete()
+        
+        return Response(status=status.HTTP_204_NO_CONTENT)
 

@@ -18,6 +18,11 @@ class MessageSerializer(serializers.ModelSerializer):
         model = Message
         fields = ['id', 'conversation', 'sender', 'sender_username', 'content', 'created_at', 'edited_at', 'is_deleted']
         read_only_fields = ['id', 'created_at', 'edited_at', 'is_deleted', 'conversation', 'sender']
+    
+    def validate_content(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Message content cannot be empty.")
+        return value.strip()
 
 
 class ConversationSerializer(serializers.ModelSerializer):
