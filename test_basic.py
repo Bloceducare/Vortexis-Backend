@@ -8,6 +8,10 @@ import os
 import sys
 import django
 
+
+
+
+
 # Setup Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'vortexis_backend.settings')
 django.setup()
