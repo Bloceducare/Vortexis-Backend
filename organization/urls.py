@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    CreateOrganizationView, UpdateOrganizationView, DeleteOrganizationView,
+    CreateOrganizationView, DeleteMyOrganizationView, UpdateOrganizationView, DeleteOrganizationView,
     GetOrganizationView, GetOrganizationsView, GetUserOrganizationsView,
     GetUnapprovedOrganizationsView, ApproveOrganizationView, AddModeratorView,
     RemoveModeratorView
@@ -14,6 +14,7 @@ urlpatterns = [
     path('create/', CreateOrganizationView.as_view(), name='create_organization'),
     path('update/<int:organization_id>/', UpdateOrganizationView.as_view(), name='update_organization'),
     path('delete/<int:organization_id>/', DeleteOrganizationView.as_view(), name='delete_organization'),
+    path('delete/<int:organization_id>/', DeleteMyOrganizationView.as_view(), name='delete_my_organization'),
     path('get/<int:organization_id>/', GetOrganizationView.as_view(), name='get_organization'),
     path('get-all/', GetOrganizationsView.as_view(), name='get_organizations'),
     path('my-organizations/', GetUserOrganizationsView.as_view(), name='get_user_organizations'),
