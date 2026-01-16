@@ -1,9 +1,9 @@
 from django.urls import path
 from .views import (
-    CreateOrganizationView, DeleteMyOrganizationView, UpdateOrganizationView, DeleteOrganizationView,
+    CreateOrganizationView, UpdateOrganizationView, DeleteOrganizationView,
     GetOrganizationView, GetOrganizationsView, GetUserOrganizationsView,
     GetUnapprovedOrganizationsView, ApproveOrganizationView, AddModeratorView,
-    RemoveModeratorView
+    RemoveModeratorView, DeleteMyOrganizationView
 )
 from .invitation_views import (
     CreateModeratorInvitationView, GetInvitationView, AcceptInvitationView,

@@ -97,8 +97,8 @@ class DeleteOrganizationView(GenericAPIView):
         organization.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
     
-    class DeleteMyOrganizationView(GenericAPIView):
-        permission_classes = [IsAuthenticated]
+class DeleteMyOrganizationView(GenericAPIView):
+    permission_classes = [IsAuthenticated, IsOrganizationOrganizer]
 
     @swagger_auto_schema(
         responses={204: 'No Content', 403: 'Forbidden', 404: 'Not Found'},
