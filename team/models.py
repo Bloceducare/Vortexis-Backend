@@ -1,4 +1,6 @@
 from django.db import models
+from django.contrib.auth.models import User
+from .team import Team
 from datetime import timedelta
 from django.utils import timezone
 import secrets
@@ -111,3 +113,19 @@ class TeamInvitation(models.Model):
         
         return self.team
     
+    class TeamJoinRequest(models.Model):
+        team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="join_requests")
+        user = models.ForeignKey(User, on_delete=models.CASCADE)
+        status = models.CharField(
+        max_length=10,
+        choices=[
+            ('pending', 'Pending'),
+            ('approved', 'Approved'),
+            ('rejected', 'Rejected')
+        ],
+        default='pending'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('team', 'user')
