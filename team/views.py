@@ -11,6 +11,8 @@ from .serializers import CreateTeamSerializer, TeamSerializer, UpdateTeamSeriali
 from .models import Team
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from .models import Team, TeamJoinRequest
+from django.shortcuts import get_object_or_404
 
 # Create your views here.
 
@@ -220,3 +222,60 @@ class TeamViewSet(ModelViewSet):
         except Team.DoesNotExist:
             return Response({'error': 'Team not found'}, status=status.HTTP_404_NOT_FOUND)
 
+    @action(detail=True, methods=['post'])
+    def request_to_join(self, request, pk=None):
+        team = self.get_object()
+        user = request.user
+
+        if team.members.filter(id=user.id).exists():
+          return Response(
+            {'error': 'You are already a member of this team'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+        already_in_team = Team.objects.filter(
+           hackathon=team.hackathon,
+           members=user
+        ).exists()
+        if already_in_team:
+           return Response(
+            {'error': 'You are already in a team for this hackathon'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+        join_request, created = TeamJoinRequest.objects.get_or_create(
+            team=team,
+            user=user
+        )
+
+        if not created:
+          return Response(
+            {'error': 'Join request already sent'},
+            status=status.HTTP_400_BAD_REQUEST
+          )
+
+        return Response(
+        {'message': 'Join request sent'},
+        status=status.HTTP_201_CREATED
+        )
+    
+@action(detail=True, methods=['post'])
+def approve_join_request(self, request, pk=None):
+    join_request = get_object_or_404(TeamJoinRequest, id=pk)
+    team = join_request.team
+
+    if team.creator != request.user:
+        return Response(
+            {'error': 'Only team creator can approve requests'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    join_request.status = 'approved'
+    join_request.save()
+
+    team.members.add(join_request.user)
+
+    return Response(
+        {'message': 'User added to team'},
+        status=status.HTTP_200_OK
+    )
