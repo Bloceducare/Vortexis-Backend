@@ -259,23 +259,66 @@ class TeamViewSet(ModelViewSet):
         status=status.HTTP_201_CREATED
         )
     
-@action(detail=True, methods=['post'])
-def approve_join_request(self, request, pk=None):
-    join_request = get_object_or_404(TeamJoinRequest, id=pk)
-    team = join_request.team
+    @action(detail=True, methods=['post'])
+    def approve_join_request(self, request, pk=None):
+        if not request.user.is_authenticated:
+            return Response(
+                {'error': 'Authentication required.'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
-    if team.creator != request.user:
+        join_request = get_object_or_404(TeamJoinRequest, id=pk)
+        team = join_request.team
+
+        if team.creator != request.user:
+            return Response(
+                {'error': 'Only the team creator can approve requests.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if join_request.status == 'approved':
+            return Response(
+                {'message': 'Join request already approved.'},
+                status=status.HTTP_200_OK
+            )
+
+        join_request.status = 'approved'
+        join_request.save()
+
+        team.members.add(join_request.user)
+
         return Response(
-            {'error': 'Only team creator can approve requests'},
-            status=status.HTTP_403_FORBIDDEN
+            {'message': f'{join_request.user.username} added to team.'},
+            status=status.HTTP_200_OK
         )
 
-    join_request.status = 'approved'
-    join_request.save()
+    @action(detail=True, methods=['post'])
+    def reject_join_request(self, request, pk=None):
+        if not request.user.is_authenticated:
+            return Response(
+                {'error': 'Authentication required.'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
-    team.members.add(join_request.user)
+        join_request = get_object_or_404(TeamJoinRequest, id=pk)
+        team = join_request.team
 
-    return Response(
-        {'message': 'User added to team'},
-        status=status.HTTP_200_OK
-    )
+        if team.creator != request.user:
+            return Response(
+                {'error': 'Only the team creator can reject requests.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if join_request.status == 'rejected':
+            return Response(
+                {'message': 'Join request already rejected.'},
+                status=status.HTTP_200_OK
+            )
+
+        join_request.status = 'rejected'
+        join_request.save()
+
+        return Response(
+            {'message': f'{join_request.user.username} join request rejected.'},
+            status=status.HTTP_200_OK
+        )
