@@ -78,8 +78,8 @@ class CreateTeamSerializer(serializers.ModelSerializer):
 
         # Check team size constraints (including the creator)
         team_size = len(member_emails) + 1  # +1 for the creator
-        if team_size < hackathon.min_team_size or team_size > hackathon.max_team_size:
-            raise serializers.ValidationError(f"Team size must be between {hackathon.min_team_size} and {hackathon.max_team_size} members.")
+        # if team_size < hackathon.min_team_size or team_size > hackathon.max_team_size:
+        #     raise serializers.ValidationError(f"Team size must be between {hackathon.min_team_size} and {hackathon.max_team_size} members.")
         
         # Add validated data for use in create method
         data['invitation_emails'] = invitation_emails

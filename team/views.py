@@ -146,6 +146,24 @@ class TeamViewSet(ModelViewSet):
         )
     
     @swagger_auto_schema(
+        responses={
+            200: TeamSerializer(many=True),
+        },
+        operation_description="Get all teams that the authenticated user is part of, regardless of hackathons",
+        tags=['teams']
+    )
+    @action(detail=False, methods=['get'])
+    def my_teams(self, request):
+        """Get all teams the authenticated user is part of, regardless of hackathons"""
+        # Get all teams where user is a member or organizer
+        teams = Team.objects.filter(members=request.user).distinct().order_by('-created_at')
+        serializer = TeamSerializer(teams, many=True, context={'request': request})
+        return Response({
+            'count': teams.count(),
+            'teams': serializer.data
+        }, status=status.HTTP_200_OK)
+    
+    @swagger_auto_schema(
         manual_parameters=[
             openapi.Parameter(
                 'hackathon_id',
