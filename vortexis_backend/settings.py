@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 from datetime import timedelta
 from decouple import config
+import logging
 
 
 
@@ -223,9 +224,113 @@ SWAGGER_SETTINGS = {
 }
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
 
-# Channels
+# Redis Configuration
+REDIS_HOST = config('REDIS_HOST', default='127.0.0.1')
+REDIS_PORT = config('REDIS_PORT', default='6379')
+REDIS_PASSWORD = config('REDIS_PASSWORD', default='')
+
+# Clean password - remove whitespace and check if actually set
+REDIS_PASSWORD = REDIS_PASSWORD.strip() if REDIS_PASSWORD else ''
+REDIS_PASSWORD_SET = bool(REDIS_PASSWORD)
+
+# Build Redis URL (without password in URL - we'll use OPTIONS for auth)
+def build_redis_url(host, port, db=0):
+    """Build Redis URL without password (password handled in OPTIONS)"""
+    return f"redis://{host}:{port}/{db}"
+
+# Cache Configuration - Redis (using database 1)
+REDIS_CACHE_URL = build_redis_url(REDIS_HOST, REDIS_PORT, db=1)
+
+# Build cache options
+CACHE_OPTIONS = {
+    'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+    'SOCKET_CONNECT_TIMEOUT': 5,
+    'SOCKET_TIMEOUT': 5,
+    'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+    'IGNORE_EXCEPTIONS': False, 
+}
+
+# Only add password if it's actually set and not empty
+if REDIS_PASSWORD_SET:
+    CACHE_OPTIONS['PASSWORD'] = REDIS_PASSWORD
+    print(f"[REDIS_CONFIG] Password authentication enabled")
+else:
+    print(f"[REDIS_CONFIG] No password authentication (Redis server doesn't require it)")
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': REDIS_CACHE_URL,
+        'OPTIONS': CACHE_OPTIONS,
+        'KEY_PREFIX': 'vortexis',
+        'TIMEOUT': 300,  # Default timeout in seconds (5 minutes)
+    }
+}
+
+# Channels - Redis (using database 0)
+REDIS_CHANNELS_URL = build_redis_url(REDIS_HOST, REDIS_PORT, db=0)
+CHANNEL_LAYERS_CONFIG = {
+    "hosts": [REDIS_CHANNELS_URL],
+}
+# Add password to channels config if set
+if REDIS_PASSWORD_SET:
+    CHANNEL_LAYERS_CONFIG["password"] = REDIS_PASSWORD
+
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': CHANNEL_LAYERS_CONFIG,
+    },
+}
+
+# Logging Configuration
+import os
+LOGS_DIR = BASE_DIR / 'logs'
+os.makedirs(LOGS_DIR, exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': LOGS_DIR / 'django.log',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'accounts': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'notifications': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
     },
 }

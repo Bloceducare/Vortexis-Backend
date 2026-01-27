@@ -79,6 +79,8 @@ class NotificationService:
             
         except Exception as e:
             logger.error(f"Error sending notification to user {user.id}: {str(e)}")
+            print(e)
+            # print(traceback.format_exc())
             return False
     
     @staticmethod
@@ -93,7 +95,7 @@ class NotificationService:
             send_mail(
                 subject=subject,
                 message=message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
+                from_email=settings.EMAIL_HOST_USER,
                 recipient_list=[user.email],
                 fail_silently=False,
                 html_message=message if '<html>' in message else None
