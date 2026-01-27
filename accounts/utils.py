@@ -1,6 +1,7 @@
 import random
 import string
 import logging
+import time
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.utils import timezone
@@ -8,10 +9,63 @@ from django.core.cache import cache
 from django.core.cache.backends.base import DEFAULT_TIMEOUT
 from datetime import timedelta
 from notifications.services import NotificationService
+from django_redis import get_redis_connection
 
 from .models import User
 
 logger = logging.getLogger(__name__)
+
+def retry_redis_operation(operation, *args, max_retries=3, retry_delay=1, **kwargs):
+    """
+    Retry a Redis operation with exponential backoff
+    
+    Args:
+        operation: Function to execute (e.g., cache.set, cache.get)
+        *args: Positional arguments to pass to the operation
+        max_retries: Maximum number of retry attempts (keyword-only)
+        retry_delay: Initial delay between retries in seconds (keyword-only)
+        **kwargs: Keyword arguments to pass to the operation
+    
+    Returns:
+        Result of the operation or None if all retries fail
+    """
+    last_exception = None
+    
+    for attempt in range(max_retries):
+        try:
+            # Try to reconnect if this is a retry
+            if attempt > 0:
+                logger.info(f"[REDIS_RETRY] Attempt {attempt + 1}/{max_retries} - Reconnecting to Redis...")
+                try:
+                    # Get fresh Redis connection
+                    redis_conn = get_redis_connection("default")
+                    redis_conn.connection_pool.disconnect()
+                    time.sleep(retry_delay * attempt)  # Exponential backoff
+                except Exception as reconnect_error:
+                    logger.warning(f"[REDIS_RETRY] Reconnection attempt failed: {str(reconnect_error)}")
+            
+            # Execute the operation
+            result = operation(*args, **kwargs)
+            if attempt > 0:
+                logger.info(f"[REDIS_RETRY] ✓ Operation succeeded on attempt {attempt + 1}")
+            return result
+            
+        except Exception as e:
+            last_exception = e
+            error_msg = str(e)
+            logger.warning(f"[REDIS_RETRY] Attempt {attempt + 1}/{max_retries} failed: {error_msg}")
+            
+            if attempt < max_retries - 1:
+                wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                logger.info(f"[REDIS_RETRY] Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                logger.error(f"[REDIS_RETRY] ✗ All {max_retries} attempts failed. Last error: {error_msg}")
+    
+    # If all retries failed, raise the last exception
+    if last_exception:
+        raise last_exception
+    return None
 
 def test_redis_connection():
     """Test if Redis is actually working"""
@@ -20,23 +74,22 @@ def test_redis_connection():
         cache_backend = cache.__class__.__name__
         logger.info(f"[CACHE_TEST] Cache backend: {cache_backend}")
         
-        # Test write and read
+        # Test write and read with retry
         test_key = 'redis_connection_test'
         test_value = 'test_value_12345'
         
-        # Set value
-        cache.set(test_key, test_value, timeout=30)
+        # Set value with retry
+        retry_redis_operation(cache.set, test_key, test_value, timeout=30)
         
-        # Get value back
-        retrieved_value = cache.get(test_key)
+        # Get value back with retry
+        retrieved_value = retry_redis_operation(cache.get, test_key)
         
         if retrieved_value == test_value:
             logger.info(f"[CACHE_TEST] ✓ Redis connection is working correctly")
-            cache.delete(test_key)
+            retry_redis_operation(cache.delete, test_key)
             return True
         elif retrieved_value is None:
             logger.error(f"[CACHE_TEST] ✗ Redis is NOT working - values are not persisting!")
-            logger.error(f"[CACHE_TEST] This usually means Redis is not connected or IGNORE_EXCEPTIONS is hiding errors")
             return False
         else:
             logger.error(f"[CACHE_TEST] ✗ Redis returned wrong value: {retrieved_value} (expected: {test_value})")
@@ -69,31 +122,34 @@ def generate_otp(user):
         logger.info(f"[OTP] Cache key (without prefix): {cache_key}")
         logger.info(f"[OTP] Cache key (with prefix): vortexis:{cache_key}")
         
-        # Store OTP in cache
+        # Store OTP in cache with retry logic
         logger.info(f"[OTP] Storing OTP in cache with timeout=600 seconds (10 minutes)")
         try:
-            cache.set(cache_key, code, timeout=600)  # 600 seconds = 10 minutes
+            retry_redis_operation(cache.set, cache_key, code, timeout=600)
             logger.info(f"[OTP] Cache.set() called successfully")
         except Exception as set_error:
-            logger.error(f"[OTP] ✗ Failed to set OTP in cache: {str(set_error)}", exc_info=True)
+            logger.error(f"[OTP] ✗ Failed to set OTP in cache after retries: {str(set_error)}", exc_info=True)
             raise
         
         # Immediately verify it was stored (critical check)
         logger.info(f"[OTP] Verifying OTP was stored in cache immediately after set()...")
         try:
-            stored_otp = cache.get(cache_key)
-            logger.info(f"[OTP] Cache.get() returned: {stored_otp} (type: {type(stored_otp).__name__})")
+            stored_otp = retry_redis_operation(cache.get, cache_key)
+            stored_type = type(stored_otp).__name__ if stored_otp else 'None'
+            logger.info(f"[OTP] Cache.get() returned: {stored_otp} (type: {stored_type})")
             
             if stored_otp == code:
                 logger.info(f"[OTP] ✓ Verification successful - OTP stored correctly: {stored_otp}")
             elif stored_otp is None:
                 logger.error(f"[OTP] ✗ CRITICAL: OTP not found in cache immediately after storing!")
-                logger.error(f"[OTP] This indicates Redis is not persisting data or connection is failing silently")
-                logger.error(f"[OTP] Check Redis connection and IGNORE_EXCEPTIONS setting")
+                logger.error(f"[OTP] This indicates Redis is not persisting data or connection is failing")
+                raise Exception("OTP verification failed - OTP not found in cache after storing")
             else:
                 logger.error(f"[OTP] ✗ Verification failed - OTP mismatch! Expected: {code}, Got: {stored_otp}")
+                raise Exception(f"OTP verification failed - OTP mismatch")
         except Exception as get_error:
             logger.error(f"[OTP] ✗ Failed to get OTP from cache during verification: {str(get_error)}", exc_info=True)
+            raise
         
         logger.info(f"[OTP] OTP stored successfully in cache for user {user.email}")
         return code
@@ -157,8 +213,12 @@ def verify_otp(user, code):
     
     # Delete OTP from cache after successful verification (one-time use)
     logger.info(f"[VERIFY_OTP] Deleting OTP from cache after successful verification")
-    cache.delete(cache_key)
-    logger.info(f"[VERIFY_OTP] OTP deleted from cache")
+    try:
+        retry_redis_operation(cache.delete, cache_key)
+        logger.info(f"[VERIFY_OTP] OTP deleted from cache")
+    except Exception as delete_error:
+        logger.warning(f"[VERIFY_OTP] Failed to delete OTP from cache (non-critical): {str(delete_error)}")
+        # Don't fail verification if delete fails - OTP is already verified
     
     logger.info(f"[VERIFY_OTP] ✓ OTP verified successfully for user {user.email}")
     return True

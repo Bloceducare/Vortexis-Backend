@@ -5,7 +5,7 @@ from django.utils import timezone
 from notifications.services import NotificationService
 
 from accounts.models import User
-from .models import Team, TeamInvitation
+from .models import Team, TeamInvitation, TeamJoinRequest
 
 
 class CreateTeamSerializer(serializers.ModelSerializer):
@@ -639,5 +639,37 @@ class TeamInvitationSerializer(serializers.ModelSerializer):
             'username': obj.invited_by.username,
             'first_name': obj.invited_by.first_name,
             'last_name': obj.invited_by.last_name
+        }
+
+
+class TeamJoinRequestSerializer(serializers.ModelSerializer):
+    """Serializer for team join requests"""
+    user = serializers.SerializerMethodField()
+    team = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TeamJoinRequest
+        fields = ['id', 'user', 'team', 'status', 'created_at']
+        read_only_fields = ['id', 'status', 'created_at']
+    
+    def get_user(self, obj):
+        """Get user details"""
+        return {
+            'id': obj.user.id,
+            'username': obj.user.username,
+            'email': obj.user.email,
+            'first_name': obj.user.first_name,
+            'last_name': obj.user.last_name,
+        }
+    
+    def get_team(self, obj):
+        """Get team details"""
+        return {
+            'id': obj.team.id,
+            'name': obj.team.name,
+            'hackathon': {
+                'id': obj.team.hackathon.id,
+                'title': obj.team.hackathon.title,
+            }
         }
 
