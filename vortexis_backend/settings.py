@@ -150,9 +150,14 @@ REST_FRAMEWORK = {
     ),
 }
 
+# JWT Token Configuration
+# Access token lifetime - configurable via environment variable (in hours, default 24 hours)
+ACCESS_TOKEN_LIFETIME_HOURS = config('ACCESS_TOKEN_LIFETIME_HOURS', default=24, cast=int)
+REFRESH_TOKEN_LIFETIME_DAYS = config('REFRESH_TOKEN_LIFETIME_DAYS', default=7, cast=int)
+
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=ACCESS_TOKEN_LIFETIME_HOURS),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=REFRESH_TOKEN_LIFETIME_DAYS),
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
