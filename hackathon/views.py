@@ -9,7 +9,6 @@ from django.conf import settings
 from django.utils import timezone
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.views import APIView
-from rest_framework.parsers import MultiPartParser, FormParser
 from drf_yasg import openapi
 from notifications.services import NotificationService
 
@@ -28,18 +27,9 @@ from .serializers import (
 class HackathonCreateView(GenericAPIView):
     permission_classes = [IsAuthenticated, IsOrganizer]
     serializer_class = CreateHackathonSerializer
-    parser_classes = (MultiPartParser, FormParser)
 
     @swagger_auto_schema(
         request_body=CreateHackathonSerializer,
-        manual_parameters=[
-            openapi.Parameter(
-                'banner_image',
-                openapi.IN_FORM,
-                description="Banner image file",
-                type=openapi.TYPE_FILE
-            ),
-        ],
         responses={
             201: HackathonSerializer,
             400: "Bad Request",

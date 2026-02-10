@@ -4,10 +4,13 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.generics import GenericAPIView
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .serializers import CreateProjectSerializer, ProjectSerializer, UpdateProjectSerializer
 from .models import Project
+from django.shortcuts import get_object_or_404
+from rest_framework.permissions import AllowAny
 
 # Create your views here.
 
@@ -68,4 +71,15 @@ class ProjectViewSet(ModelViewSet):
             serializer.save(hackathon=hackathon)
         else:
             serializer.save()
+
+
+class HackathonProjectDetailView(GenericAPIView):
+    """Public endpoint to retrieve a project scoped to a hackathon."""
+    permission_classes = [AllowAny]
+    serializer_class = ProjectSerializer
+
+    def get(self, request, hackathon_id, project_id):
+        project = get_object_or_404(Project, id=project_id, hackathon_id=hackathon_id)
+        serializer = self.get_serializer(project)
+        return Response(serializer.data)
     

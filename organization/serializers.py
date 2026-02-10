@@ -3,7 +3,6 @@ from .models import Organization, ModeratorInvitation
 from accounts.models import User
 from notifications.services import NotificationService
 from django.utils import timezone
-from utils.cloudinary_utils import upload_image_to_cloudinary
 import re
 
 class ApproveOrganizationSerializer(serializers.Serializer):
@@ -24,7 +23,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'is_approved', 'created_at', 'updated_at']
 
 class CreateOrganizationSerializer(serializers.ModelSerializer):
-    logo_file = serializers.ImageField(write_only=True, required=False)
+    logo_file = serializers.URLField(write_only=True, required=False, allow_blank=True)
     
     class Meta:
         model = Organization
@@ -92,11 +91,10 @@ class CreateOrganizationSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        logo_file = validated_data.pop('logo_file', None)
+        logo_url = validated_data.pop('logo_file', None)
         
-        # Upload logo to Cloudinary if provided
-        if logo_file:
-            logo_url = upload_image_to_cloudinary(logo_file, folder='organization_logos')
+        # Set logo URL if provided
+        if logo_url:
             validated_data['logo'] = logo_url
         
         user = self.context['request'].user
@@ -122,7 +120,7 @@ class CreateOrganizationSerializer(serializers.ModelSerializer):
         return organization
 
 class UpdateOrganizationSerializer(serializers.ModelSerializer):
-    logo_file = serializers.ImageField(write_only=True, required=False)
+    logo_file = serializers.URLField(write_only=True, required=False, allow_blank=True)
     
     class Meta:
         model = Organization
@@ -186,11 +184,10 @@ class UpdateOrganizationSerializer(serializers.ModelSerializer):
         return data
 
     def update(self, instance, validated_data):
-        logo_file = validated_data.pop('logo_file', None)
+        logo_url = validated_data.pop('logo_file', None)
         
-        # Upload new logo to Cloudinary if provided
-        if logo_file:
-            logo_url = upload_image_to_cloudinary(logo_file, folder='organization_logos')
+        # Set new logo URL if provided
+        if logo_url:
             validated_data['logo'] = logo_url
         
         for attr, value in validated_data.items():

@@ -3,7 +3,6 @@ from django.contrib.auth import get_user_model, authenticate
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from .models import Skill, User, Profile, PasswordResetToken
 from .utils import verify_otp
-from utils.cloudinary_utils import upload_image_to_cloudinary
 
 User = get_user_model()
 
@@ -21,7 +20,7 @@ class SkillSerializer(serializers.ModelSerializer):
 
 class ProfileSerializer(serializers.ModelSerializer):
     skills = SkillSerializer(many=True, required=False)
-    profile_picture_file = serializers.ImageField(write_only=True, required=False)
+    profile_picture_file = serializers.URLField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = Profile
@@ -40,11 +39,10 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         skills_data = validated_data.pop('skills', [])
-        profile_picture_file = validated_data.pop('profile_picture_file', None)
+        profile_picture_url = validated_data.pop('profile_picture_file', None)
         
-        # Upload profile picture to Cloudinary if provided
-        if profile_picture_file:
-            profile_picture_url = upload_image_to_cloudinary(profile_picture_file, folder='profile_pictures')
+        # Set profile picture URL if provided
+        if profile_picture_url:
             validated_data['profile_picture'] = profile_picture_url
         
         profile = Profile.objects.create(**validated_data)
@@ -55,11 +53,10 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         skills_data = validated_data.pop('skills', None)
-        profile_picture_file = validated_data.pop('profile_picture_file', None)
+        profile_picture_url = validated_data.pop('profile_picture_file', None)
         
-        # Upload new profile picture to Cloudinary if provided
-        if profile_picture_file:
-            profile_picture_url = upload_image_to_cloudinary(profile_picture_file, folder='profile_pictures')
+        # Set new profile picture URL if provided
+        if profile_picture_url:
             validated_data['profile_picture'] = profile_picture_url
         
         for attr, value in validated_data.items():
