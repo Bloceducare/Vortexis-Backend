@@ -2,7 +2,6 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Prefetch
 from accounts.permissions import IsOrganizer, IsAdmin, IsOrganizationOrganizer
@@ -26,19 +25,9 @@ class OrganizationPagination(PageNumberPagination):
 class CreateOrganizationView(GenericAPIView):
     serializer_class = CreateOrganizationSerializer
     permission_classes = [IsAuthenticated]
-    parser_classes = (MultiPartParser, FormParser)
 
     @swagger_auto_schema(
         request_body=CreateOrganizationSerializer,
-        manual_parameters=[
-            openapi.Parameter(
-                'logo_file',
-                openapi.IN_FORM,
-                description="Organization logo image file (JPEG or PNG, less than 2 MB, recommended 480x480px)",
-                type=openapi.TYPE_FILE,
-                required=False
-            ),
-        ],
         responses={201: OrganizationSerializer, 400: 'Bad Request'},
         operation_description="Create a new organization.",
         tags=['organization']
@@ -52,19 +41,9 @@ class CreateOrganizationView(GenericAPIView):
 class UpdateOrganizationView(GenericAPIView):
     serializer_class = UpdateOrganizationSerializer
     permission_classes = [IsAuthenticated, IsOrganizationOrganizer]
-    parser_classes = (MultiPartParser, FormParser)
 
     @swagger_auto_schema(
         request_body=UpdateOrganizationSerializer,
-        manual_parameters=[
-            openapi.Parameter(
-                'logo_file',
-                openapi.IN_FORM,
-                description="Organization logo image file (JPEG or PNG, less than 2 MB, recommended 480x480px)",
-                type=openapi.TYPE_FILE,
-                required=False
-            ),
-        ],
         responses={200: OrganizationSerializer, 404: 'Not Found'},
         operation_description="Update an organization.",
         tags=['organization']

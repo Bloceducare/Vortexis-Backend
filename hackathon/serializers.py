@@ -4,7 +4,6 @@ from django.utils import timezone
 from team.models import Team
 from .models import Hackathon, Theme, Submission, Review, HackathonParticipant
 from accounts.models import User
-from utils.cloudinary_utils import upload_image_to_cloudinary
 
 
 class ThemeSerializer(serializers.ModelSerializer):
@@ -295,7 +294,7 @@ class HackathonSerializer(serializers.ModelSerializer):
 
 
 class CreateHackathonSerializer(HackathonSerializer):
-    banner_image_file = serializers.ImageField(write_only=True, required=False)
+    banner_image_file = serializers.URLField(write_only=True, required=False, allow_blank=True)
     organization_id = serializers.IntegerField(write_only=True, required=True)
 
     class Meta(HackathonSerializer.Meta):
@@ -332,12 +331,11 @@ class CreateHackathonSerializer(HackathonSerializer):
     def create(self, validated_data):
         skills = validated_data.pop('skills', None)
         themes = validated_data.pop('themes', [])
-        banner_image_file = validated_data.pop('banner_image_file', None)
+        banner_image_url = validated_data.pop('banner_image_file', None)
         organization_id = validated_data.pop('organization_id')
 
-        # Upload banner image to Cloudinary if provided
-        if banner_image_file:
-            banner_image_url = upload_image_to_cloudinary(banner_image_file, folder='hackathon_banners')
+        # Set banner image URL if provided
+        if banner_image_url:
             validated_data['banner_image'] = banner_image_url
 
         from organization.models import Organization
@@ -357,7 +355,7 @@ class CreateHackathonSerializer(HackathonSerializer):
 
 
 class UpdateHackathonSerializer(HackathonSerializer):
-    banner_image_file = serializers.ImageField(write_only=True, required=False)
+    banner_image_file = serializers.URLField(write_only=True, required=False, allow_blank=True)
     
     class Meta(HackathonSerializer.Meta):
         fields = ['title', 'description', 'banner_image', 'banner_image_file', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'visibility', 'rules', 'prizes', 'evaluation_criteria']
@@ -383,11 +381,10 @@ class UpdateHackathonSerializer(HackathonSerializer):
     def update(self, instance, validated_data):
         skills = validated_data.pop('skills', None)
         themes = validated_data.pop('themes', None)
-        banner_image_file = validated_data.pop('banner_image_file', None)
+        banner_image_url = validated_data.pop('banner_image_file', None)
         
-        # Upload new banner image to Cloudinary if provided
-        if banner_image_file:
-            banner_image_url = upload_image_to_cloudinary(banner_image_file, folder='hackathon_banners')
+        # Set new banner image URL if provided
+        if banner_image_url:
             validated_data['banner_image'] = banner_image_url
         
         for attr, value in validated_data.items():

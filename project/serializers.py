@@ -2,6 +2,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from team.models import Team
 from .models import Project
+from hackathon.models import Submission
 
 
 class CreateProjectSerializer(serializers.ModelSerializer):
@@ -86,10 +87,11 @@ class CreateProjectSerializer(serializers.ModelSerializer):
 class ProjectSerializer(serializers.ModelSerializer):
     team = serializers.SerializerMethodField()
     hackathon = serializers.SerializerMethodField()
+    is_submitted = serializers.SerializerMethodField()
     
     class Meta:
         model = Project
-        fields = ['id', 'title', 'description', 'github_url', 'live_link', 'demo_video_url', 'presentation_link', 'team', 'hackathon', 'created_at', 'updated_at']
+        fields = ['id', 'title', 'description', 'github_url', 'live_link', 'demo_video_url', 'presentation_link', 'team', 'hackathon', 'is_submitted', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
     
     def get_team(self, obj):
@@ -109,6 +111,13 @@ class ProjectSerializer(serializers.ModelSerializer):
                 'end_date': obj.hackathon.end_date
             }
         return None
+
+    def get_is_submitted(self, obj):
+        # A Submission is linked OneToOne to Project; check existence
+        try:
+            return Submission.objects.filter(project=obj).exists()
+        except Exception:
+            return False
 
 
 class UpdateProjectSerializer(serializers.ModelSerializer):
