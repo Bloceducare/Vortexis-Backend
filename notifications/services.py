@@ -333,3 +333,28 @@ class NotificationTemplates:
                 'details': details
             }
         )
+    
+    @staticmethod
+    def team_member_left(team, departed_user):
+        """Notify remaining team members that someone has left"""
+        title = f"Member Left Team: {team.name}"
+        message = (
+            f"{(departed_user.first_name + ' ' + departed_user.last_name).strip() or departed_user.username} "
+            f"has left the team '{team.name}'."
+        )
+        return NotificationService.send_bulk_notifications(
+            users=list(team.members.all()),
+            title=title,
+            message=message,
+            category='account',
+            priority='normal',
+            data={
+                'team_id': team.id,
+                'team_name': team.name,
+                'departed_user_id': departed_user.id,
+            },
+            action_url=f"{settings.FRONTEND_URL}/teams/{team.id}",
+            action_text="View Team",
+            send_email=True,
+            send_in_app=True
+        )
