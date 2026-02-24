@@ -14,6 +14,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .models import Team, TeamJoinRequest
 from django.shortcuts import get_object_or_404
+from notifications.services import NotificationService
 
 # Create your views here.
 
@@ -129,17 +130,23 @@ class TeamViewSet(ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         
-        # Send notification email to team organizer and remaining members
-        remaining_members = team.members.all()
-        if remaining_members.exists():
+        # Notify team participants that someone has left
+        remaining_members = list(team.members.all())
+        departed = request.user
+
+        if remaining_members:
+            # first send traditional email for backwards compatibility
             recipient_emails = [member.email for member in remaining_members]
             send_mail(
                 subject=f"Member Left Team: {team.name}",
-                message=f"Dear Team,\n\n{(request.user.first_name + ' ' + request.user.last_name).strip() or request.user.username} has left the team '{team.name}'.\n\nRemaining members: {', '.join([((member.first_name + ' ' + member.last_name).strip() or member.username) for member in remaining_members])}\n\nTeam Organizer: {((team.organizer.first_name + ' ' + team.organizer.last_name).strip() or team.organizer.username) if team.organizer else 'Unknown'}",
+                message=f"Dear Team,\n\n{(departed.first_name + ' ' + departed.last_name).strip() or departed.username} has left the team '{team.name}'.\n\nRemaining members: {', '.join([((member.first_name + ' ' + member.last_name).strip() or member.username) for member in remaining_members])}\n\nTeam Organizer: {((team.organizer.first_name + ' ' + team.organizer.last_name).strip() or team.organizer.username) if team.organizer else 'Unknown'}",
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=recipient_emails,
                 fail_silently=True
             )
+
+            # create in‑app/email notifications via NotificationService
+            NotificationService.team_member_left(team=team, departed_user=departed)
         
         return Response(
             {'message': f'You have successfully left the team "{team.name}".'},
