@@ -145,23 +145,7 @@ class TeamViewSet(ModelViewSet):
             )
 
             # create in‑app/email notifications via NotificationService
-            NotificationService.send_bulk_notifications(
-                users=remaining_members,
-                title=f"Member Left Team: {team.name}",
-                message=(f"{(departed.first_name + ' ' + departed.last_name).strip() or departed.username} "
-                         f"has left the team '{team.name}'."),
-                category='account',
-                priority='normal',
-                data={
-                    'team_id': team.id,
-                    'team_name': team.name,
-                    'departed_user_id': departed.id,
-                },
-                action_url=f"{settings.FRONTEND_URL}/teams/{team.id}",
-                action_text="View Team",
-                send_email=True,
-                send_in_app=True,
-            )
+            NotificationService.team_member_left(team=team, departed_user=departed)
         
         return Response(
             {'message': f'You have successfully left the team "{team.name}".'},
