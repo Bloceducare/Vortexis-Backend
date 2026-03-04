@@ -3,14 +3,12 @@ from django.utils import timezone
 from django.core.validators import URLValidator
 from datetime import timedelta
 import secrets
-import re
 
 class Organization(models.Model):
     name = models.CharField(max_length=128, unique=True)
     description = models.TextField()
     website = models.URLField(max_length=200, blank=True, null=True, validators=[URLValidator()])
     logo = models.URLField(max_length=500, blank=True, null=True)
-    custom_url = models.CharField(max_length=128, unique=True, blank=True, null=True)
     location = models.CharField(max_length=32, blank=True, null=True)
     tagline = models.CharField(max_length=200, blank=True, null=True)
     about = models.TextField(max_length=5000, blank=True, null=True)
@@ -21,12 +19,8 @@ class Organization(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def clean(self):
-        # Validate custom_url format if provided
-        if self.custom_url:
-            if not re.match(r'^[a-zA-Z0-9_-]+$', self.custom_url):
-                raise models.ValidationError({
-                    'custom_url': 'Custom URL can only contain letters, numbers, hyphens, and underscores.'
-                })
+        # (No additional field-specific validation required at the moment)
+        pass
 
     class Meta:
         indexes = [

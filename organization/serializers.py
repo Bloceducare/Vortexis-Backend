@@ -16,7 +16,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = [
-            'id', 'name', 'description', 'website', 'logo', 'custom_url', 
+            'id', 'name', 'description', 'website', 'logo',
             'location', 'tagline', 'about', 'organizer', 'moderators', 
             'is_approved', 'created_at', 'updated_at'
         ]
@@ -28,13 +28,12 @@ class CreateOrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = [
-            'name', 'description', 'website', 'logo_file', 'custom_url', 
+            'name', 'description', 'website', 'logo_file',
             'location', 'tagline', 'about'
         ]
         extra_kwargs = {
             'logo': {'read_only': True},
             'website': {'required': False, 'allow_blank': True},
-            'custom_url': {'required': False, 'allow_blank': True},
             'location': {'required': False, 'allow_blank': True},
             'tagline': {'required': False, 'allow_blank': True},
             'about': {'required': False, 'allow_blank': True},
@@ -57,18 +56,6 @@ class CreateOrganizationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Website URL must start with http:// or https://")
         return value
 
-    def validate_custom_url(self, value):
-        if value:
-            if len(value) > 128:
-                raise serializers.ValidationError("Custom URL cannot exceed 128 characters.")
-            if not re.match(r'^[a-zA-Z0-9_-]+$', value):
-                raise serializers.ValidationError(
-                    "Custom URL can only contain letters, numbers, hyphens, and underscores."
-                )
-            # Check if custom_url already exists
-            if Organization.objects.filter(custom_url=value).exists():
-                raise serializers.ValidationError("This custom URL is already taken.")
-        return value
 
     def validate_location(self, value):
         if value and len(value) > 32:
@@ -125,7 +112,7 @@ class UpdateOrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = [
-            'name', 'description', 'website', 'logo_file', 'custom_url', 
+            'name', 'description', 'website', 'logo_file',
             'location', 'tagline', 'about'
         ]
         extra_kwargs = {
@@ -133,7 +120,6 @@ class UpdateOrganizationSerializer(serializers.ModelSerializer):
             'name': {'required': False},
             'description': {'required': False},
             'website': {'required': False, 'allow_blank': True},
-            'custom_url': {'required': False, 'allow_blank': True},
             'location': {'required': False, 'allow_blank': True},
             'tagline': {'required': False, 'allow_blank': True},
             'about': {'required': False, 'allow_blank': True},
@@ -149,18 +135,6 @@ class UpdateOrganizationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Website URL must start with http:// or https://")
         return value
 
-    def validate_custom_url(self, value):
-        if value:
-            if len(value) > 128:
-                raise serializers.ValidationError("Custom URL cannot exceed 128 characters.")
-            if not re.match(r'^[a-zA-Z0-9_-]+$', value):
-                raise serializers.ValidationError(
-                    "Custom URL can only contain letters, numbers, hyphens, and underscores."
-                )
-            # Check if custom_url already exists (excluding current instance)
-            if Organization.objects.filter(custom_url=value).exclude(id=self.instance.id).exists():
-                raise serializers.ValidationError("This custom URL is already taken.")
-        return value
 
     def validate_location(self, value):
         if value and len(value) > 32:

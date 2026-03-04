@@ -87,9 +87,12 @@ class NotificationService:
     def send_email_notification(user, subject, message, template_name=None, context=None):
         """Send email notification to user"""
         try:
+            html_message = None
             # Use template if provided
             if template_name and context:
-                message = render_to_string(template_name, context)
+                html_message = render_to_string(template_name, context)
+                message = "please view this email in an HTML-compatible email client."
+
             
             # Send email
             send_mail(
@@ -98,7 +101,7 @@ class NotificationService:
                 from_email=settings.EMAIL_HOST_USER,
                 recipient_list=[user.email],
                 fail_silently=False,
-                html_message=message if '<html>' in message else None
+                html_message=html_message
             )
             
             # Track email notification
