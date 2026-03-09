@@ -222,6 +222,9 @@ class MessageViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Upda
         return self._paginator
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Message.objects.none()
+        
         user = self.request.user
         conversation_id = self.kwargs.get('conversation_pk')
 
