@@ -1,3 +1,4 @@
+import logging
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.generics import GenericAPIView
@@ -8,6 +9,8 @@ from drf_yasg.utils import swagger_auto_schema
 from .serializers import UserSerializer, ProfileSerializer, SkillSerializer
 from .models import User, Profile, Skill, PasswordResetToken
 from .utils import send_otp_mail, send_password_reset_email
+
+logger = logging.getLogger(__name__)
 
 
 class UserRegistrationView(GenericAPIView):
@@ -21,16 +24,38 @@ class UserRegistrationView(GenericAPIView):
         tags=['account']
     )
     def post(self, request):
-        serializer = UserSerializer.RegistrationSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        # Automatically create a Profile for the user
-        Profile.objects.get_or_create(user=user)
-        send_otp_mail(user.email)
-        return Response(
-            {"message": "User registered successfully. Please verify your email.", "user": UserSerializer.RetrieveSerializer(user).data},
-            status=status.HTTP_201_CREATED
-        )
+        
+        try:
+            
+            serializer = UserSerializer.RegistrationSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            
+            
+            
+            user = serializer.save()
+            
+            
+            
+            profile, created = Profile.objects.get_or_create(user=user)
+            
+            
+            
+            try:
+                send_otp_mail(user.email)
+                logger.info(f"[REGISTER] OTP email sent successfully to mail")
+            except Exception as email_error:
+                logger.error(f"[REGISTER] Failed to send OTP email to {user.email}: {str(email_error)}", exc_info=True)
+                # Continue with registration even if email fails
+                # User can request OTP resend later
+            
+            logger.info(f"[REGISTER] Registration completed successfully for user {user.id}")
+            return Response(
+                {"message": "User registered successfully. Please verify your email.", "user": UserSerializer.RetrieveSerializer(user).data},
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            logger.error(f"[REGISTER] Registration failed: {str(e)}", exc_info=True)
+            raise
 
 
 class VerifyUserView(GenericAPIView):
