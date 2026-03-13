@@ -239,6 +239,7 @@ class HackathonSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hackathon
         fields = '__all__'
+        ref_name = 'HackathonDetailSerializer'
 
 
     def to_representation(self, instance):
