@@ -280,7 +280,7 @@ CHANNEL_LAYERS_CONFIG = {
 }
 # Add password to channels config if set
 if REDIS_PASSWORD_SET:
-    CHANNEL_LAYERS_CONFIG["password"] = REDIS_PASSWORD
+  CHANNEL_LAYERS_CONFIG["password"] = REDIS_PASSWORD
 
 CHANNEL_LAYERS = {
     'default': {

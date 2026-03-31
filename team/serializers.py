@@ -5,7 +5,7 @@ from django.utils import timezone
 from notifications.services import NotificationService
 
 from accounts.models import User
-from .models import Team, TeamInvitation, TeamJoinRequest
+from admin_console.models import Team, TeamInvitation, TeamJoinRequest
 
 
 class CreateTeamSerializer(serializers.ModelSerializer):
@@ -321,7 +321,7 @@ class AddMemberSerializer(serializers.Serializer):
 
     def validate_member_email(self, value):
         from hackathon.models import HackathonParticipant
-        from .models import TeamInvitation
+        from admin_console.models import TeamInvitation
         
         request = self.context.get('request')
         if not request:
@@ -371,7 +371,7 @@ class AddMemberSerializer(serializers.Serializer):
     def save(self):
         from django.core.mail import send_mail
         from django.conf import settings
-        from .models import TeamInvitation
+        from admin_console.models import TeamInvitation
         
         email = self.validated_data['member_email']
         team = self.instance
@@ -585,7 +585,7 @@ class AcceptTeamInvitationSerializer(serializers.Serializer):
     token = serializers.CharField()
 
     def validate_token(self, value):
-        from .models import TeamInvitation
+        from admin_console.models import TeamInvitation
         
         try:
             invitation = TeamInvitation.objects.get(token=value)

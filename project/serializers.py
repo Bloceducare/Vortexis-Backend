@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from team.models import Team
-from .models import Project
+from admin_console.models import Project
 from hackathon.models import Submission
 
 
