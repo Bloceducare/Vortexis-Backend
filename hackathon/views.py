@@ -11,7 +11,6 @@ from drf_yasg.utils import swagger_auto_schema
 from rest_framework.views import APIView
 from drf_yasg import openapi
 from notifications.services import NotificationService
-
 from team.models import Team
 from team.serializers import TeamSerializer
 from .models import Hackathon, Theme, Submission, Review, HackathonParticipant
@@ -256,7 +255,7 @@ class InviteJudgeView(GenericAPIView):
         # Create judge invitations for all emails
         from .models import JudgeInvitation
         from accounts.utils import send_judge_invitation_email
-        
+
         successful_invitations = []
         failed_invitations = []
         

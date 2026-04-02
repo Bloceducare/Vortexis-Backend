@@ -1,58 +1,41 @@
 from django.db import models
-import pyotp
-from django.db import models
-from django.contrib.auth.models import AbstractUser, Group, Permission
-
-# Custom user with roles
-class User(AbstractUser):
-    ROLE_CHOICES = [
-        ('PlatformOwner','Platform Owner'),
-        ('SystemAdmin','System Admin'),
-        ('Organizer','Organizer'),
-        ('Judge','Judge'),
-        ('Participant','Participant')
-    ]
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
-    status = models.CharField(max_length=10, choices=[('active','Active'),('inactive','Inactive')], default='active')
-    
-    # 2FA secret (stored securely)
-    totp_secret = models.CharField(max_length=16, blank=True, null=True)
-    
-    groups = models.ManyToManyField(Group, related_name='admin_console_user_set', blank=True)
-    user_permissions = models.ManyToManyField(Permission, related_name='admin_console_user_permission_set', blank=True)
-
-    def generate_totp_secret(self):
-        self.totp_secret = pyotp.random_base32()
-        self.save()
-
-    def verify_totp(self, token):
-        if not self.totp_secret:
-            return False
-        totp = pyotp.TOTP(self.totp_secret)
-        return totp.verify(token)
-  
-
-class Hackathon(models.Model):
-    title = models.CharField(max_length=200)
-    description = models.TextField()
-    start_date = models.DateField()
-    end_date = models.DateField()
-    status = models.CharField(max_length=20, choices=[('active','Active'),('inactive','Inactive')], default='active')
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
+import secrets
+from accounts.models import User
+from hackathon.models import Hackathon, Submission, Theme
+from organization.models import Organization
+from team.models import Team
+from project.models import Project
 
 
-class Submission(models.Model):
-    hackathon = models.ForeignKey(Hackathon, on_delete=models.CASCADE)
-    participant = models.ForeignKey(User, on_delete=models.CASCADE)
-    status = models.CharField(max_length=20, choices=[('pending','Pending'),('approved','Approved'),('rejected','Rejected')])
+# Admin-specific Review model for submission scoring
+class Review(models.Model):
+    submission = models.ForeignKey(Submission, related_name='admin_reviews', on_delete=models.CASCADE)
+    judge = models.ForeignKey(User, related_name='admin_reviews', on_delete=models.CASCADE)
+    innovation_score = models.IntegerField(null=False, blank=False, default=0, validators=[MinValueValidator(0), MaxValueValidator(10)])
+    technical_score = models.IntegerField(null=False, blank=False, default=0, validators=[MinValueValidator(0), MaxValueValidator(10)])
+    user_experience_score = models.IntegerField(null=False, blank=False, default=0, validators=[MinValueValidator(0), MaxValueValidator(10)])
+    impact_score = models.IntegerField(null=False, blank=False, default=0, validators=[MinValueValidator(0), MaxValueValidator(10)])
+    presentation_score = models.IntegerField(null=False, blank=False, default=0, validators=[MinValueValidator(0), MaxValueValidator(10)])
+    overall_score = models.IntegerField(null=False, blank=False, default=0, validators=[MinValueValidator(0), MaxValueValidator(10)])
+    review = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['-created_at'], name='admin_rev_created_idx'),
+            models.Index(fields=['judge', '-created_at'], name='admin_rev_judge_idx'),
+            models.Index(fields=['submission', '-created_at'], name='admin_rev_submission_idx'),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.judge.username}'s review for {self.submission.project.title}"
 
 
-class Organization(models.Model):
-    name = models.CharField(max_length=200)
-    email = models.EmailField()
-    status = models.CharField(max_length=10, choices=[('active','Active'),('inactive','Inactive')], default='active')
-
-
+# Audit log model for tracking admin actions
 class AuditLog(models.Model):
     admin = models.ForeignKey(User, on_delete=models.CASCADE)
     action = models.CharField(max_length=200)
@@ -61,6 +44,7 @@ class AuditLog(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
 
 
+# Platform-wide settings for admins
 class PlatformSetting(models.Model):
     key = models.CharField(max_length=100, unique=True)
     value = models.TextField()

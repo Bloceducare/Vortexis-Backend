@@ -9,7 +9,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from notifications.services import NotificationService
 from .serializers import CreateTeamSerializer, TeamSerializer, UpdateTeamSerializer, AddMemberSerializer, RemoveMemberSerializer, LeaveTeamSerializer, AcceptTeamInvitationSerializer, TeamInvitationSerializer, TeamJoinRequestSerializer
-from .models import Team
+from admin_console.models import Team
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .models import Team, TeamJoinRequest
