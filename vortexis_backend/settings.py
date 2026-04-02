@@ -123,7 +123,7 @@ DATABASES = {
         'PASSWORD': config('PGPASSWORD'),
         'HOST': config('PGHOST'),
         'PORT': config('DB_PORT', default='5432'),
-    }
+    },
 }
 
 

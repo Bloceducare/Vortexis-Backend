@@ -10,7 +10,10 @@ from rest_framework.views import APIView
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.db import models
-from .models import User, Hackathon, Submission, Organization, AuditLog, PlatformSetting
+from accounts.models import User
+from hackathon.models import Hackathon, Submission
+from organization.models import Organization
+from .models import Review, AuditLog, PlatformSetting
 from .serializers import (
     UserSerializer, HackathonSerializer, SubmissionSerializer,
     AdminOrganizationSerializer, AuditLogSerializer, PlatformSettingSerializer
@@ -19,8 +22,7 @@ from .permissions import IsAdminUser
 from .throttles import AdminRateThrottle
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
-from django.db.models import Count
-from admin_console.models import User, Hackathon, Submission, Organization
+from django.db.models import Count, Avg
 
 
 
@@ -175,7 +177,48 @@ class HackathonViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(start_date__gte=start_date)
         if end_date:
             queryset = queryset.filter(end_date__lte=end_date)
+
+        is_approved = self.request.query_params.get('is_approved')
+        is_suspended = self.request.query_params.get('is_suspended')
+        if is_approved is not None:
+            queryset = queryset.filter(is_approved=is_approved.lower() == 'true')
+        if is_suspended is not None:
+            queryset = queryset.filter(is_suspended=is_suspended.lower() == 'true')
+
         return queryset.order_by("-start_date")
+
+    @action(detail=True, methods=['patch'])
+    def approve(self, request, pk=None):
+        hackathon = self.get_object()
+        hackathon.is_approved = True
+        hackathon.is_suspended = False
+        hackathon.save()
+        self.log_action('APPROVE_HACKATHON', target_id=pk)
+        return Response({'message': 'Hackathon approved'})
+
+    @action(detail=True, methods=['patch'])
+    def reject(self, request, pk=None):
+        hackathon = self.get_object()
+        hackathon.is_approved = False
+        hackathon.save()
+        self.log_action('REJECT_HACKATHON', target_id=pk)
+        return Response({'message': 'Hackathon rejected'})
+
+    @action(detail=True, methods=['patch'])
+    def suspend(self, request, pk=None):
+        hackathon = self.get_object()
+        hackathon.is_suspended = True
+        hackathon.save()
+        self.log_action('SUSPEND_HACKATHON', target_id=pk)
+        return Response({'message': 'Hackathon suspended'})
+
+    @action(detail=True, methods=['patch'])
+    def restore(self, request, pk=None):
+        hackathon = self.get_object()
+        hackathon.is_suspended = False
+        hackathon.save()
+        self.log_action('RESTORE_HACKATHON', target_id=pk)
+        return Response({'message': 'Hackathon restored'})
 
     def log_action(self, action, target_id=None):
         AuditLog.objects.create(
@@ -255,6 +298,38 @@ class SubmissionViewSet(viewsets.ModelViewSet):
 
         return queryset
 
+    @action(detail=False, methods=['get'], url_path='score-overview')
+    def score_overview(self, request):
+        hackathon_id = request.query_params.get('hackathon_id')
+        submissions = Submission.objects.all()
+        if hackathon_id:
+            submissions = submissions.filter(hackathon_id=hackathon_id)
+
+        score_stats = submissions.aggregate(
+            total_submissions=Count('id'),
+            reviewed_submissions=Count('id', filter=models.Q(status='reviewed')),
+            approved_submissions=Count('id', filter=models.Q(status='approved')),
+            rejected_submissions=Count('id', filter=models.Q(status='rejected')),
+            average_overall_score=Avg('reviews__overall_score'),
+            average_technical_score=Avg('reviews__technical_score'),
+            average_innovation_score=Avg('reviews__innovation_score')
+        )
+
+        submission_scores = submissions.annotate(
+            avg_overall=Avg('reviews__overall_score'),
+            avg_technical=Avg('reviews__technical_score'),
+            avg_innovation=Avg('reviews__innovation_score'),
+            review_count=Count('reviews')
+        ).values(
+            'id', 'project__title', 'hackathon__title', 'status', 'approved',
+            'avg_overall', 'avg_technical', 'avg_innovation', 'review_count'
+        )
+
+        return Response({
+            'score_stats': score_stats,
+            'submissions': list(submission_scores)
+        })
+
     def log_action(self, action, target_id=None):
         AuditLog.objects.create(
             admin=getattr(self.request, 'user', None),
@@ -268,6 +343,7 @@ class SubmissionViewSet(viewsets.ModelViewSet):
     def approve(self, request, pk=None):
         submission = self.get_object()
         submission.status = "approved"
+        submission.approved = True
         submission.save()
         self.log_action("APPROVE_SUBMISSION", target_id=pk)
         return Response({"message": "Submission approved"})
@@ -276,6 +352,7 @@ class SubmissionViewSet(viewsets.ModelViewSet):
     def reject(self, request, pk=None):
         submission = self.get_object()
         submission.status = "rejected"
+        submission.approved = False
         submission.save()
         self.log_action("REJECT_SUBMISSION", target_id=pk)
         return Response({"message": "Submission rejected"})
@@ -322,8 +399,47 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(name__icontains=name)
         if is_active is not None:
             queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        is_approved = self.request.query_params.get('is_approved')
+        is_suspended = self.request.query_params.get('is_suspended')
+        if is_approved is not None:
+            queryset = queryset.filter(is_approved=is_approved.lower() == 'true')
+        if is_suspended is not None:
+            queryset = queryset.filter(is_suspended=is_suspended.lower() == 'true')
 
         return queryset
+
+    @action(detail=True, methods=['patch'])
+    def approve(self, request, pk=None):
+        organization = self.get_object()
+        organization.is_approved = True
+        organization.is_suspended = False
+        organization.save()
+        self.log_action('APPROVE_ORGANIZATION', target_id=pk)
+        return Response({'message': 'Organization approved'})
+
+    @action(detail=True, methods=['patch'])
+    def reject(self, request, pk=None):
+        organization = self.get_object()
+        organization.is_approved = False
+        organization.save()
+        self.log_action('REJECT_ORGANIZATION', target_id=pk)
+        return Response({'message': 'Organization rejected'})
+
+    @action(detail=True, methods=['patch'])
+    def suspend(self, request, pk=None):
+        organization = self.get_object()
+        organization.is_suspended = True
+        organization.save()
+        self.log_action('SUSPEND_ORGANIZATION', target_id=pk)
+        return Response({'message': 'Organization suspended'})
+
+    @action(detail=True, methods=['patch'])
+    def restore(self, request, pk=None):
+        organization = self.get_object()
+        organization.is_suspended = False
+        organization.save()
+        self.log_action('RESTORE_ORGANIZATION', target_id=pk)
+        return Response({'message': 'Organization restored'})
 
     def log_action(self, action, target_id=None):
         AuditLog.objects.create(
@@ -354,8 +470,10 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
-from django.db.models import Count
-from admin_console.models import User, Hackathon, Submission, Organization
+from django.db.models import Count, Avg
+from accounts.models import User
+from hackathon.models import Hackathon, Submission
+from organization.models import Organization
 
 class AnalyticsView(APIView):
     permission_classes = [IsAdminUser]

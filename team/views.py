@@ -12,7 +12,7 @@ from .serializers import CreateTeamSerializer, TeamSerializer, UpdateTeamSeriali
 from admin_console.models import Team
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
-from admin_console.models import Team, TeamJoinRequest
+from .models import Team, TeamJoinRequest
 from django.shortcuts import get_object_or_404
 from notifications.services import NotificationService
 

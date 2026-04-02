@@ -256,7 +256,7 @@ class InviteJudgeView(GenericAPIView):
         # Create judge invitations for all emails
         from admin_console.models import JudgeInvitation
         from accounts.utils import send_judge_invitation_email
-        
+
         successful_invitations = []
         failed_invitations = []
         

@@ -8,7 +8,7 @@ from rest_framework.generics import GenericAPIView
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .serializers import CreateProjectSerializer, ProjectSerializer, UpdateProjectSerializer
-from admin_console.models import Project
+from .models import Project
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import AllowAny
 

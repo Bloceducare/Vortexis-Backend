@@ -12,7 +12,7 @@ from .serializers import (
     ModeratorInvitationSerializer, CreateModeratorInvitationSerializer,
     AcceptInvitationSerializer, DeclineInvitationSerializer
 )
-from admin_console.models import Organization, ModeratorInvitation
+from .models import Organization, ModeratorInvitation
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 

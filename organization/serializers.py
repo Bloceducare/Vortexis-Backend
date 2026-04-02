@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from admin_console.models import Organization, ModeratorInvitation
+from .models import Organization, ModeratorInvitation
 from accounts.models import User
 from notifications.services import NotificationService
 from django.utils import timezone

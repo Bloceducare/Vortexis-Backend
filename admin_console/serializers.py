@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import User, Hackathon, Submission, Organization, AuditLog, PlatformSetting
+from accounts.models import User
+from hackathon.models import Hackathon, Submission
+from organization.models import Organization
+from .models import AuditLog, PlatformSetting
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
