@@ -11,10 +11,9 @@ from drf_yasg.utils import swagger_auto_schema
 from rest_framework.views import APIView
 from drf_yasg import openapi
 from notifications.services import NotificationService
-
 from team.models import Team
 from team.serializers import TeamSerializer
-from admin_console.models import Hackathon, Theme, Submission, Review, HackathonParticipant
+from .models import Hackathon, Theme, Submission, Review, HackathonParticipant
 from .serializers import (
     HackathonSerializer, CreateHackathonSerializer, SubmitProjectSerializer, UpdateHackathonSerializer,
     RegisterHackathonSerializer, ThemeSerializer,
@@ -254,7 +253,7 @@ class InviteJudgeView(GenericAPIView):
         emails = serializer.validated_data['emails']
         
         # Create judge invitations for all emails
-        from admin_console.models import JudgeInvitation
+        from .models import JudgeInvitation
         from accounts.utils import send_judge_invitation_email
 
         successful_invitations = []
