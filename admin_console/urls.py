@@ -13,11 +13,11 @@ from .views import (
 
 # Create a router for viewsets
 router = DefaultRouter()
-router.register("users", UserViewSet)
-router.register("hackathons", HackathonViewSet)
-router.register("submissions", SubmissionViewSet)
-router.register("organizations", OrganizationViewSet)
-router.register("settings", PlatformSettingViewSet)
+router.register("users", UserViewSet, basename="console-users")
+router.register("hackathons", HackathonViewSet, basename="console-hackathons")
+router.register("submissions", SubmissionViewSet, basename="console-submissions")
+router.register("organizations", OrganizationViewSet, basename="console-organizations")
+router.register("settings", PlatformSettingViewSet, basename="console-settings")
 
 # Add all router URLs
 urlpatterns = [
