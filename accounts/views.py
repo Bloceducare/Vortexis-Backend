@@ -1,9 +1,9 @@
 import logging
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.generics import GenericAPIView
+from rest_framework.generics import GenericAPIView, RetrieveAPIView
 from rest_framework.viewsets import ModelViewSet
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from drf_yasg.utils import swagger_auto_schema
 from .serializers import UserSerializer, ProfileSerializer, SkillSerializer
@@ -494,8 +494,11 @@ class ResetPasswordView(GenericAPIView):
         )
 
 
-class PublicUserProfileView(GenericAPIView):
-    permission_classes = [IsAuthenticated]
+class PublicUserProfileView(RetrieveAPIView):
+
+    serializer_class = UserSerializer.PublicSerializer
+    permission_classes = [AllowAny]
+    queryset = User.objects.all()
 
     @swagger_auto_schema(
         responses={
