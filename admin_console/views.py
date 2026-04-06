@@ -66,7 +66,7 @@ class AuditMixin:
 class UserViewSet(AuditMixin, viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdminUser]
     throttle_classes = [AdminRateThrottle]
 
     @swagger_auto_schema(
@@ -133,7 +133,7 @@ class UserViewSet(AuditMixin, viewsets.ModelViewSet):
 class HackathonViewSet(viewsets.ModelViewSet):
     queryset = Hackathon.objects.all()
     serializer_class = HackathonSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdminUser]
     throttle_classes = [AdminRateThrottle]
 
     @swagger_auto_schema(
@@ -253,7 +253,7 @@ class HackathonViewSet(viewsets.ModelViewSet):
 class SubmissionViewSet(viewsets.ModelViewSet):
     queryset = Submission.objects.all()
     serializer_class = SubmissionSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdminUser]
     throttle_classes = [AdminRateThrottle]
 
     @swagger_auto_schema(
@@ -366,7 +366,7 @@ class SubmissionViewSet(viewsets.ModelViewSet):
 class OrganizationViewSet(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = AdminOrganizationSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdminUser]
     throttle_classes = [AdminRateThrottle]
 
     @swagger_auto_schema(
@@ -476,7 +476,7 @@ from hackathon.models import Hackathon, Submission
 from organization.models import Organization
 
 class AnalyticsView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdminUser]
     throttle_classes = [AdminRateThrottle]
     @swagger_auto_schema(
         manual_parameters=[
@@ -541,7 +541,7 @@ class AnalyticsView(APIView):
 
 
 class LogsView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdminUser]
     throttle_classes = [AdminRateThrottle]
 
     @swagger_auto_schema(
@@ -598,7 +598,7 @@ class LogsView(APIView):
 class PlatformSettingViewSet(viewsets.ModelViewSet):
     queryset = PlatformSetting.objects.all()
     serializer_class = PlatformSettingSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdminUser]
     throttle_classes = [AdminRateThrottle]
 
     @swagger_auto_schema(
