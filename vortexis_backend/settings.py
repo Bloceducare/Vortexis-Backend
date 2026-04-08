@@ -149,17 +149,27 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'EXCEPTION_HANDLER': 'vortexis_backend.exception_handler.custom_exception_handler',
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '10/minute',
+        'user': '50/minute',
+        'admin': '100/minute',
+    },
 }
 
 # JWT Token Configuration
 # Access token lifetime - configurable via environment variable (in hours, default 24 hours)
-ACCESS_TOKEN_LIFETIME_HOURS = config('ACCESS_TOKEN_LIFETIME_HOURS', default=24, cast=int)
+ACCESS_TOKEN_LIFETIME_HOURS = config('ACCESS_TOKEN_LIFETIME_HOURS', default=48, cast=int)
 REFRESH_TOKEN_LIFETIME_DAYS = config('REFRESH_TOKEN_LIFETIME_DAYS', default=7, cast=int)
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(hours=ACCESS_TOKEN_LIFETIME_HOURS),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=REFRESH_TOKEN_LIFETIME_DAYS),
-    "AUTH_HEADER_TYPES": ("Bearer",),
+    "AUTH_HEADER_TYPES": ("Bearer", ),
 }
 
 
@@ -253,7 +263,8 @@ CACHE_OPTIONS = {
     'SOCKET_CONNECT_TIMEOUT': 5,
     'SOCKET_TIMEOUT': 5,
     'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
-    'IGNORE_EXCEPTIONS': False, 
+    # Avoid 500s when Redis is slow/unreachable (e.g. throttle cache); operations degrade gracefully.
+    'IGNORE_EXCEPTIONS': True, 
 }
 
 # Only add password if it's actually set and not empty
@@ -339,16 +350,4 @@ LOGGING = {
             'propagate': False,
         },
     },
-}
-
-REST_FRAMEWORK = {
-    "DEFAULT_THROTTLE_CLASSES": [
-        "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
-    ],
-    "DEFAULT_THROTTLE_RATES": {
-        "anon": "10/minute",   # unauthenticated users
-        "user": "50/minute",  # logged-in users
-        "admin": "100/minute", # admin users
-    }
 }
