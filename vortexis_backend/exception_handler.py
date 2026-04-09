@@ -20,3 +20,5 @@ def custom_exception_handler(exc, context):
         detail = str(exc)
 
     return Response({"detail": detail}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
