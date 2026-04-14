@@ -23,6 +23,7 @@ from .throttles import AdminRateThrottle
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from django.db.models import Count, Avg
+from django.db.models import Q
 
 
 
@@ -53,7 +54,7 @@ def generate_2fa_qr(request):
 
 
 class AuditMixin:
-    def perform_action(self, action, target_type=None, target_id=None):
+    def log_action(self, action, target_type=None, target_id=None):
         AuditLog.objects.create(
             admin=getattr(self.request, 'user', None),
             action=action,
@@ -64,6 +65,7 @@ class AuditMixin:
 
 
 class UserViewSet(AuditMixin, viewsets.ModelViewSet):
+    default_target_type = "User"
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
@@ -116,21 +118,22 @@ class UserViewSet(AuditMixin, viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
-        self.perform_action('CREATE_USER', target_id=response.data.get('id'))
+        self.log_action('CREATE_USER', target_id=response.data.get('id'))
         return response
 
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)
-        self.perform_action('UPDATE_USER', target_id=kwargs.get('pk'))
+        self.log_action('UPDATE_USER', target_id=kwargs.get('pk'))
         return response
 
     def destroy(self, request, *args, **kwargs):
-        self.perform_action('DELETE_USER', target_id=kwargs.get('pk'))
+        self.log_action('DELETE_USER', target_id=kwargs.get('pk'))
         return super().destroy(request, *args, **kwargs)
 
 
 
-class HackathonViewSet(viewsets.ModelViewSet):
+class HackathonViewSet(AuditMixin, viewsets.ModelViewSet):
+    default_target_type = "Hackathon"
     queryset = Hackathon.objects.all()
     serializer_class = HackathonSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
@@ -200,6 +203,7 @@ class HackathonViewSet(viewsets.ModelViewSet):
     def reject(self, request, pk=None):
         hackathon = self.get_object()
         hackathon.is_approved = False
+        hackathon.is_suspended = True
         hackathon.save()
         self.log_action('REJECT_HACKATHON', target_id=pk)
         return Response({'message': 'Hackathon rejected'})
@@ -219,15 +223,6 @@ class HackathonViewSet(viewsets.ModelViewSet):
         hackathon.save()
         self.log_action('RESTORE_HACKATHON', target_id=pk)
         return Response({'message': 'Hackathon restored'})
-
-    def log_action(self, action, target_id=None):
-        AuditLog.objects.create(
-            admin=getattr(self.request, 'user', None),
-            action=action,
-            target_type="Hackathon",
-            target_id=str(target_id) if target_id else None,
-            timestamp=timezone.now()
-        )
 
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
@@ -250,7 +245,8 @@ class HackathonViewSet(viewsets.ModelViewSet):
 
 
 
-class SubmissionViewSet(viewsets.ModelViewSet):
+class SubmissionViewSet(AuditMixin, viewsets.ModelViewSet):
+    default_target_type = "Submission"
     queryset = Submission.objects.all()
     serializer_class = SubmissionSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
@@ -307,19 +303,18 @@ class SubmissionViewSet(viewsets.ModelViewSet):
 
         score_stats = submissions.aggregate(
             total_submissions=Count('id'),
-            reviewed_submissions=Count('id', filter=models.Q(status='reviewed')),
-            approved_submissions=Count('id', filter=models.Q(status='approved')),
-            rejected_submissions=Count('id', filter=models.Q(status='rejected')),
-            average_overall_score=Avg('reviews__overall_score'),
-            average_technical_score=Avg('reviews__technical_score'),
-            average_innovation_score=Avg('reviews__innovation_score')
+            approved_submissions=Count('id', filter=Q(status='approved')),
+            rejected_submissions=Count('id', filter=Q(status='rejected')),
+            average_overall_score=Avg('admin_reviews__overall_score'),
+            average_technical_score=Avg('admin_reviews__technical_score'),
+            average_innovation_score=Avg('admin_reviews__innovation_score'),
         )
 
         submission_scores = submissions.annotate(
-            avg_overall=Avg('reviews__overall_score'),
-            avg_technical=Avg('reviews__technical_score'),
-            avg_innovation=Avg('reviews__innovation_score'),
-            review_count=Count('reviews')
+            avg_overall=Avg('admin_reviews__overall_score'),
+            avg_technical=Avg('admin_reviews__technical_score'),
+            avg_innovation=Avg('admin_reviews__innovation_score'),
+            review_count=Count('admin_reviews')
         ).values(
             'id', 'project__title', 'hackathon__title', 'status', 'approved',
             'avg_overall', 'avg_technical', 'avg_innovation', 'review_count'
@@ -329,15 +324,6 @@ class SubmissionViewSet(viewsets.ModelViewSet):
             'score_stats': score_stats,
             'submissions': list(submission_scores)
         })
-
-    def log_action(self, action, target_id=None):
-        AuditLog.objects.create(
-            admin=getattr(self.request, 'user', None),
-            action=action,
-            target_type="Submission",
-            target_id=str(target_id) if target_id else None,
-            timestamp=timezone.now()
-        )
 
     @action(detail=True, methods=["patch"])
     def approve(self, request, pk=None):
@@ -363,7 +349,8 @@ class SubmissionViewSet(viewsets.ModelViewSet):
 
 
 
-class OrganizationViewSet(viewsets.ModelViewSet):
+class OrganizationViewSet(AuditMixin, viewsets.ModelViewSet):
+    default_target_type = "Organization"
     queryset = Organization.objects.all()
     serializer_class = AdminOrganizationSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
@@ -441,15 +428,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         self.log_action('RESTORE_ORGANIZATION', target_id=pk)
         return Response({'message': 'Organization restored'})
 
-    def log_action(self, action, target_id=None):
-        AuditLog.objects.create(
-            admin=getattr(self.request, 'user', None),
-            action=action,
-            target_type="Organization",
-            target_id=str(target_id) if target_id else None,
-            timestamp=timezone.now()
-        )
-
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
         self.log_action("CREATE_ORGANIZATION", target_id=response.data.get("id"))
@@ -464,16 +442,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         self.log_action("DELETE_ORGANIZATION", target_id=kwargs.get("pk"))
         return super().destroy(request, *args, **kwargs)
 
-
-# admin_console/views.py
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
-from django.db.models import Count, Avg
-from accounts.models import User
-from hackathon.models import Hackathon, Submission
-from organization.models import Organization
 
 class AnalyticsView(APIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
@@ -536,7 +504,6 @@ class AnalyticsView(APIView):
 
         if hackathon_specific:
             data["hackathon_specific"] = hackathon_specific
-
         return Response(data)
 
 
