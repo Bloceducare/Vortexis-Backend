@@ -134,7 +134,7 @@ class UserViewSet(AuditMixin, viewsets.ModelViewSet):
 
 class HackathonViewSet(AuditMixin, viewsets.ModelViewSet):
     default_target_type = "Hackathon"
-    queryset = Hackathon.objects.all()
+    queryset = Hackathon
     serializer_class = HackathonSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
     throttle_classes = [AdminRateThrottle]
