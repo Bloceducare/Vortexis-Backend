@@ -5,11 +5,14 @@ from organization.models import Organization
 from .models import AuditLog, PlatformSetting
 
 class UserSerializer(serializers.ModelSerializer):
+    organizations = serializers.SerializerMethodField()
     class Meta:
         model = User
         fields = '__all__'
         ref_name = 'AdminUserSerializer'
-
+    def get_organizations(self, obj):
+        return list(obj.organizations.values_list('id', flat=True))
+    
 class HackathonSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hackathon
