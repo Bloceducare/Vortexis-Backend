@@ -1,12 +1,17 @@
+import math
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.generics import GenericAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.exceptions import NotFound
 from accounts.permissions import IsOrganizer, IsJudge
 from accounts.serializers import UserSerializer
 from django.conf import settings
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.views import APIView
 from drf_yasg import openapi
@@ -65,37 +70,89 @@ class HackathonCreateView(GenericAPIView):
         )
 
 
+class HackathonPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'pageSize'
+    page_query_param = 'page'
+    max_page_size = 100
+
+
+@method_decorator(cache_page(60 * 5), name='get')
 class HackathonListView(ListCreateAPIView):
     serializer_class = HackathonSerializer
 
     def get_queryset(self):
+        today = timezone.now().date()
         return Hackathon.objects.filter(
-            visibility=True
+            visibility=True,
+            end_date__gte=today
         ).select_related(
             'organization', 'organization__organizer'
         ).prefetch_related(
             'themes', 'skills', 'judges'
-        ).order_by('-created_at')  # Latest first
+        ).order_by('-created_at')
 
     def get_permissions(self):
         if self.request.method == 'GET':
-            # Allow unauthenticated access for listing hackathons
             return []
-        else:
-            # Require authentication for creating hackathons
-            return [IsAuthenticated()]
+        return [IsAuthenticated()]
 
     @swagger_auto_schema(
-        responses={
-            200: HackathonSerializer(many=True)
-        },
-        operation_description="List all public hackathons. No authentication required.",
+        manual_parameters=[
+            openapi.Parameter('page', openapi.IN_QUERY, description="Page number (default: 1)", type=openapi.TYPE_INTEGER),
+            openapi.Parameter('pageSize', openapi.IN_QUERY, description="Items per page (default: 10, max: 100)", type=openapi.TYPE_INTEGER),
+            openapi.Parameter('limit', openapi.IN_QUERY, description="Return N most recent active hackathons, bypasses page metadata", type=openapi.TYPE_INTEGER),
+        ],
+        responses={200: HackathonSerializer(many=True), 400: "Bad Request"},
+        operation_description="List active public hackathons. Use page/pageSize for pagination or limit for a simple count. No authentication required.",
         tags=['hackathons']
     )
     def get(self, request, *args, **kwargs):
-        return super().get(request, *args, **kwargs)
+        queryset = self.get_queryset()
+
+        limit = request.query_params.get('limit')
+        if limit is not None:
+            try:
+                limit = int(limit)
+                if limit < 1:
+                    raise ValueError
+            except ValueError:
+                return Response(
+                    {"error": "limit must be a positive integer."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            data = self.get_serializer(queryset[:limit], many=True).data
+            return Response({"data": data, "limit": limit})
+
+        paginator = HackathonPagination()
+        try:
+            page = paginator.paginate_queryset(queryset, request)
+        except NotFound:
+            total = queryset.count()
+            page_size = paginator.get_page_size(request)
+            return Response({
+                "data": [],
+                "pagination": {
+                    "page": int(request.query_params.get(paginator.page_query_param, 1)),
+                    "pageSize": page_size,
+                    "totalItems": total,
+                    "totalPages": math.ceil(total / page_size) if total else 1,
+                }
+            })
+
+        serializer = self.get_serializer(page, many=True)
+        return Response({
+            "data": serializer.data,
+            "pagination": {
+                "page": paginator.page.number,
+                "pageSize": paginator.get_page_size(request),
+                "totalItems": paginator.page.paginator.count,
+                "totalPages": paginator.page.paginator.num_pages,
+            }
+        })
 
 
+@method_decorator(cache_page(60 * 5), name='get')
 class HackathonRetrieveView(RetrieveUpdateDestroyAPIView):
     serializer_class = HackathonSerializer
     lookup_field = 'id'
@@ -695,10 +752,10 @@ class OrganizerHackathonsView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+@method_decorator(cache_page(60 * 5), name='get')
 class OrganizationHackathonsView(APIView):
 
     def get_permissions(self):
-        # Allow unauthenticated access for viewing public hackathons
         return []
 
     @swagger_auto_schema(
