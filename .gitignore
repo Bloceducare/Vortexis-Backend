@@ -11,3 +11,4 @@ migrations/
 */migrations/
 populate_hackathons.py
 .DS_Store
+vortexis_backend/test_settings.py
