@@ -6,10 +6,17 @@ from .models import AuditLog, PlatformSetting
 
 class UserSerializer(serializers.ModelSerializer):
     organizations = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = '__all__'
+        fields = [
+            'id', 'email', 'username', 'first_name', 'last_name',
+            'auth_provider', 'is_participant', 'is_organizer', 'is_judge',
+            'is_moderator', 'is_admin', 'is_staff', 'is_active', 'is_verified',
+            'date_joined', 'last_login', 'organizations',
+        ]
         ref_name = 'AdminUserSerializer'
+
     def get_organizations(self, obj):
         return list(obj.organizations.values_list('id', flat=True))
     
