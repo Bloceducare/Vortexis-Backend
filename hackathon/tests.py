@@ -232,3 +232,40 @@ class HackathonListPaginationTests(APITestCase):
         self.client.logout()
         response = self.client.get(LIST_URL)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class HackathonRetrieveByNameTests(APITestCase):
+
+    def setUp(self):
+        cache.clear()
+        self.organizer = make_user(1)
+        self.org = make_org(self.organizer)
+        self.hackathon = make_hackathon(self.org, title='Global Hackathon')
+
+    def test_retrieve_by_slugified_name_returns_full_details(self):
+        response = self.client.get(LIST_URL, {'hackathon_name': 'global_hackathon'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertEqual(body['hackathon']['title'], 'Global Hackathon')
+        self.assertIn('teams', body)
+        self.assertIn('individual_participants', body)
+        self.assertIn('submissions', body)
+        self.assertIn('projects', body)
+
+    def test_retrieve_by_title_returns_full_details(self):
+        response = self.client.get(LIST_URL, {'hackathon_name': 'Global Hackathon'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()['hackathon']['id'], self.hackathon.id)
+
+    def test_missing_hackathon_name_returns_400(self):
+        response = self.client.get(LIST_URL, {'hackathon_name': ''})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_unknown_hackathon_name_returns_404(self):
+        response = self.client.get(LIST_URL, {'hackathon_name': 'nonexistent_hackathon'})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_retrieve_by_name_is_accessible_without_authentication(self):
+        self.client.logout()
+        response = self.client.get(LIST_URL, {'hackathon_name': 'global_hackathon'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
