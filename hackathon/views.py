@@ -28,6 +28,49 @@ from .serializers import (
 )
 
 
+def normalize_hackathon_name(name):
+    return name.strip().lower().replace('-', '_').replace(' ', '_')
+
+
+def get_hackathon_by_name(hackathon_name):
+    normalized = normalize_hackathon_name(hackathon_name)
+
+    queryset = Hackathon.objects.select_related(
+        'organization', 'organization__organizer'
+    ).prefetch_related(
+        'themes', 'skills', 'judges'
+    )
+
+    for hackathon in queryset:
+        if normalize_hackathon_name(hackathon.title) == normalized:
+            return hackathon
+
+    title_variant = hackathon_name.replace('_', ' ').replace('-', ' ')
+    return queryset.filter(title__iexact=title_variant).first()
+
+
+def build_full_hackathon_response(hackathon, request):
+    from project.models import Project
+    from project.serializers import ProjectSerializer
+
+    teams = hackathon.teams.select_related('organizer').prefetch_related('members')
+    individual_participants = hackathon.individual_participants.select_related(
+        'user', 'team'
+    ).prefetch_related('skills_offered')
+    submissions = hackathon.submissions.select_related(
+        'project', 'team'
+    ).prefetch_related('reviews', 'reviews__judge')
+    projects = Project.objects.filter(hackathon=hackathon).select_related('team')
+
+    return {
+        'hackathon': HackathonSerializer(hackathon, context={'request': request}).data,
+        'teams': TeamSerializer(teams, many=True, context={'request': request}).data,
+        'individual_participants': HackathonParticipantSerializer(individual_participants, many=True).data,
+        'submissions': SubmissionSerializer(submissions, many=True).data,
+        'projects': ProjectSerializer(projects, many=True).data,
+    }
+
+
 class HackathonCreateView(GenericAPIView):
     permission_classes = [IsAuthenticated, IsOrganizer]
     serializer_class = CreateHackathonSerializer
@@ -78,6 +121,48 @@ class HackathonPagination(PageNumberPagination):
 
 
 @method_decorator(cache_page(60 * 5), name='get')
+class HackathonRetrieveByNameView(APIView):
+
+    def get_permissions(self):
+        return []
+
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter(
+                'hackathon_name',
+                openapi.IN_QUERY,
+                description="Hackathon name or slug (e.g. global_hackathon)",
+                type=openapi.TYPE_STRING,
+                required=True,
+            ),
+        ],
+        responses={
+            200: "Full hackathon details with teams, participants, submissions, and projects",
+            400: "Bad Request",
+            404: "Hackathon not found",
+        },
+        operation_description="Retrieve a hackathon and all related data by name. No authentication required.",
+        tags=['hackathons']
+    )
+    def get(self, request):
+        hackathon_name = request.query_params.get('hackathon_name')
+        if not hackathon_name or not hackathon_name.strip():
+            return Response(
+                {"error": "hackathon_name query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        hackathon = get_hackathon_by_name(hackathon_name)
+        if not hackathon:
+            return Response(
+                {"error": "Hackathon not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(build_full_hackathon_response(hackathon, request), status=status.HTTP_200_OK)
+
+
+@method_decorator(cache_page(60 * 5), name='get')
 class HackathonListView(ListCreateAPIView):
     serializer_class = HackathonSerializer
 
@@ -102,12 +187,17 @@ class HackathonListView(ListCreateAPIView):
             openapi.Parameter('page', openapi.IN_QUERY, description="Page number (default: 1)", type=openapi.TYPE_INTEGER),
             openapi.Parameter('pageSize', openapi.IN_QUERY, description="Items per page (default: 10, max: 100)", type=openapi.TYPE_INTEGER),
             openapi.Parameter('limit', openapi.IN_QUERY, description="Return N most recent active hackathons, bypasses page metadata", type=openapi.TYPE_INTEGER),
+            openapi.Parameter('hackathon_name', openapi.IN_QUERY, description="Fetch a single hackathon and all related data by name (e.g. global_hackathon)", type=openapi.TYPE_STRING),
         ],
         responses={200: HackathonSerializer(many=True), 400: "Bad Request"},
-        operation_description="List active public hackathons. Use page/pageSize for pagination or limit for a simple count. No authentication required.",
+        operation_description="List active public hackathons. Use page/pageSize for pagination or limit for a simple count. Pass hackathon_name to fetch a single hackathon with all related data. No authentication required.",
         tags=['hackathons']
     )
     def get(self, request, *args, **kwargs):
+        hackathon_name = request.query_params.get('hackathon_name')
+        if hackathon_name:
+            return HackathonRetrieveByNameView().get(request)
+
         queryset = self.get_queryset()
 
         limit = request.query_params.get('limit')
