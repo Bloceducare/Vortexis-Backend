@@ -194,8 +194,11 @@ class HackathonListView(ListCreateAPIView):
         tags=['hackathons']
     )
     def get(self, request, *args, **kwargs):
+        # Route to the by-name handler whenever the param is present — even when
+        # empty — so an empty value yields a 400 from that handler rather than
+        # silently falling through to the list response.
         hackathon_name = request.query_params.get('hackathon_name')
-        if hackathon_name:
+        if hackathon_name is not None:
             return HackathonRetrieveByNameView().get(request)
 
         queryset = self.get_queryset()

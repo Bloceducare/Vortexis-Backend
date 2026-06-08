@@ -24,10 +24,13 @@ urlpatterns = [
     path('remove-moderator/<int:organization_id>/', RemoveModeratorView.as_view(), name='remove_moderator'),
 
     # Invitation endpoints
+    # NOTE: static routes (accept/decline) MUST come before the '<str:token>'
+    # catch-all, otherwise 'accept'/'decline' get captured as a token and
+    # routed to the GET-only GetInvitationView (405 on POST).
     path('invite-moderator/<int:organization_id>/', CreateModeratorInvitationView.as_view(), name='invite_moderator'),
-    path('invitation/<str:token>/', GetInvitationView.as_view(), name='get_invitation'),
     path('invitation/accept/', AcceptInvitationView.as_view(), name='accept_invitation'),
     path('invitation/decline/', DeclineInvitationView.as_view(), name='decline_invitation'),
     path('invitations/sent/<int:organization_id>/', GetSentInvitationsView.as_view(), name='get_sent_invitations'),
     path('invitations/received/', GetReceivedInvitationsView.as_view(), name='get_received_invitations'),
+    path('invitation/<str:token>/', GetInvitationView.as_view(), name='get_invitation'),
 ]

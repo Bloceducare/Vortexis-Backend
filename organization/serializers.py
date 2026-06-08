@@ -4,6 +4,8 @@ from accounts.models import User
 from notifications.services import NotificationService
 from django.utils import timezone
 import re
+from django.conf import settings
+from django.core.mail import send_mail
 
 class ApproveOrganizationSerializer(serializers.Serializer):
     """Empty serializer for the approve organization endpoint."""
@@ -298,25 +300,39 @@ class CreateModeratorInvitationSerializer(serializers.ModelSerializer):
             **validated_data
         )
 
-        NotificationService.send_notification(
-            user=invitee if invitee else None,
-            title='Moderator Invitation',
-            message=f'You have been invited to be a moderator for "{organization.name}".',
-            category='invitation',
-            priority='normal',
-            send_email=True,
-            send_in_app=True if invitee else False,
-            email_override=validated_data['email'] if not invitee else None,
-            data={
-                'organization_id': organization.id,
-                'organization_name': organization.name,
-                'invitation_id': invitation.id,
-                'invitation_token': invitation.token,
-                'action': 'moderator_invitation'
-            },
-            action_url=f'/invitations/moderator/{invitation.token}',
-            action_text='View Invitation'
-        )
+        if invitee:
+            # Registered user — send in-app notification + email via NotificationService
+            NotificationService.send_notification(
+                user=invitee,
+                title='Moderator Invitation',
+                message=f'You have been invited to be a moderator for "{organization.name}".',
+                category='account',
+                priority='normal',
+                send_email=True,
+                send_in_app=True,
+                data={
+                    'organization_id': organization.id,
+                    'organization_name': organization.name,
+                    'invitation_id': invitation.id,
+                    'invitation_token': invitation.token,
+                    'action': 'moderator_invitation'
+                },
+                action_url=f'/invitations/moderator/{invitation.token}',
+                action_text='View Invitation'
+            )
+        else:
+            # Not a registered user — send a plain email directly
+            send_mail(
+                subject=f'Moderator Invitation — {organization.name}',
+                message=(
+                    f'You have been invited to become a moderator for "{organization.name}".\n\n'
+                    f'Accept your invitation here: '
+                    f'{settings.FRONTEND_URL}/invitations/moderator/{invitation.token}'
+                ),
+                from_email=settings.EMAIL_HOST_USER,
+                recipient_list=[validated_data['email']],
+                fail_silently=True,
+            )
 
         return invitation
 
@@ -360,7 +376,7 @@ class AcceptInvitationSerializer(serializers.Serializer):
             user=invitation.inviter,
             title='Invitation Accepted',
             message=f'{user.username} has accepted the moderator invitation for "{invitation.organization.name}".',
-            category='invitation',
+            category='account',
             priority='normal',
             send_email=True,
             send_in_app=True,
@@ -408,7 +424,7 @@ class DeclineInvitationSerializer(serializers.Serializer):
             user=invitation.inviter,
             title='Invitation Declined',
             message=f'{user.username} has declined the moderator invitation for "{invitation.organization.name}".',
-            category='invitation',
+            category='account',
             priority='normal',
             send_email=True,
             send_in_app=True,
