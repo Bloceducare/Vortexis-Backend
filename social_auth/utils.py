@@ -114,4 +114,30 @@ class Github:
             return response.json()
         except Exception as e:
             raise AuthenticationFailed('Invalid or expired token')
+
+    @staticmethod
+    def get_primary_email(access_token):
+        """Fetch the user's primary, verified email.
+
+        GitHub returns ``email: null`` from /user when the user has set their
+        email to private, so we fall back to the /user/emails endpoint and pick
+        the primary verified address.
+        """
+        try:
+            headers = {
+                'Authorization': f'Bearer {access_token}'
+            }
+            response = requests.get('https://api.github.com/user/emails', headers=headers)
+            emails = response.json()
+        except Exception:
+            return None
+
+        if not isinstance(emails, list):
+            return None
+
+        # Prefer the primary + verified address, then any verified address.
+        primary = next((e['email'] for e in emails if e.get('primary') and e.get('verified')), None)
+        if primary:
+            return primary
+        return next((e['email'] for e in emails if e.get('verified')), None)
     
