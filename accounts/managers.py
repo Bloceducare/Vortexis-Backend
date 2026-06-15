@@ -10,7 +10,7 @@ class UserManager(BaseUserManager):
         except ValidationError:
             raise ValueError(_('Please enter a valid email address.'))
         
-    def create_user(self, email, username, first_name, last_name, password=None, **extra_fields):
+    def create_user(self, email, username, first_name, last_name='', password=None, **extra_fields):
         if not email:
             raise ValueError(_('Please enter an email address.'))
         self.email_validator(email)
@@ -18,8 +18,9 @@ class UserManager(BaseUserManager):
             raise ValueError(_('Please enter a username.'))
         if not first_name:
             raise ValueError(_('Please enter your first name.'))
-        if not last_name:
-            raise ValueError(_('Please enter your last name.'))
+        # last_name is optional — the model allows blank/null and social
+        # providers (e.g. GitHub) often supply only a single name.
+        last_name = last_name or ''
         email = self.normalize_email(email)
         user = self.model(email=email, username=username, first_name=first_name, last_name=last_name, **extra_fields)
         user.set_password(password)
