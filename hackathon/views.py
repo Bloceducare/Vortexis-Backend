@@ -3,9 +3,12 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.generics import GenericAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.viewsets import ModelViewSet
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import NotFound
+from django.db.models import Q
+from accounts.models import User
+from organization.models import Organization
 from accounts.permissions import IsOrganizer, IsJudge
 from accounts.serializers import UserSerializer
 from django.conf import settings
@@ -160,6 +163,43 @@ class HackathonRetrieveByNameView(APIView):
             )
 
         return Response(build_full_hackathon_response(hackathon, request), status=status.HTTP_200_OK)
+
+
+class HackathonStatsView(APIView):
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        responses={
+            200: openapi.Response(
+                description="Public platform stats",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'active_participants': openapi.Schema(type=openapi.TYPE_INTEGER, description="Total active participants"),
+                        'hackathons_hosted': openapi.Schema(type=openapi.TYPE_INTEGER, description="Total hackathons hosted"),
+                        'organizations': openapi.Schema(type=openapi.TYPE_INTEGER, description="Total organizations"),
+                    }
+                )
+            )
+        },
+        operation_description="Retrieve public platform statistics: active participants, hackathons hosted, and organizations.",
+        tags=['hackathons']
+    )
+    def get(self, request):
+        active_participants = User.objects.filter(
+            Q(is_participant=True) | Q(hackathon_participations__isnull=False) | Q(teams__isnull=False),
+            is_active=True
+        ).distinct().count()
+        hackathons_hosted = Hackathon.objects.count()
+        organizations = Organization.objects.count()
+
+        return Response({
+            "active_participants": active_participants,
+            "hackathons_hosted": hackathons_hosted,
+            "organizations": organizations,
+            "activeParticipants": active_participants,
+            "hackathonsHosted": hackathons_hosted,
+        }, status=status.HTTP_200_OK)
 
 
 @method_decorator(cache_page(60 * 5), name='get')
