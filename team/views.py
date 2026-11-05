@@ -535,6 +535,7 @@ class TeamViewSet(ModelViewSet):
         user_name = (join_request.user.first_name + ' ' + join_request.user.last_name).strip() or join_request.user.username
         subject = f"Join Request Approved: {team.name}"
         message = f"Congratulations {user_name}!\n\nYour request to join the team '{team.name}' for '{team.hackathon.title}' has been approved.\n\nYou are now a member of the team!"
+        organizer_name = (team.organizer.first_name + ' ' + team.organizer.last_name).strip() if team.organizer else 'Team Organizer'
         
         NotificationService.send_notification(
             user=join_request.user,
@@ -544,11 +545,20 @@ class TeamViewSet(ModelViewSet):
             priority='normal',
             send_email=True,
             send_in_app=True,
+            template_name='emails/joinrequest_response.html',
+            context={
+                'status': 'approved',
+                'team_name': team.name,
+                'hackathon_title': team.hackathon.title if team.hackathon else 'Hackathon',
+                'organizer_name': organizer_name,
+                'action_url': f"/teams/{team.id}",
+                'action_text': 'View Team Workspace',
+                'user': join_request.user,
+            },
             data={'team_id': team.id, 'action': 'join_request_approved'}
         )
 
         # Notify team members
-        organizer_name = (team.organizer.first_name + ' ' + team.organizer.last_name).strip() if team.organizer else 'Team Organizer'
         member_subject = f"New Member Joined: {team.name}"
         member_message = f"Dear Team,\n\n{user_name} has joined the team '{team.name}'.\n\nWelcome to the team!"
         
@@ -626,6 +636,7 @@ class TeamViewSet(ModelViewSet):
         user_name = (join_request.user.first_name + ' ' + join_request.user.last_name).strip() or join_request.user.username
         subject = f"Join Request Update: {team.name}"
         message = f"Dear {user_name},\n\nYour request to join the team '{team.name}' for '{team.hackathon.title}' has been declined.\n\nYou can try joining another team or create your own team for this hackathon."
+        organizer_name = (team.organizer.first_name + ' ' + team.organizer.last_name).strip() if team.organizer else 'Team Organizer'
         
         NotificationService.send_notification(
             user=join_request.user,
@@ -635,6 +646,16 @@ class TeamViewSet(ModelViewSet):
             priority='normal',
             send_email=True,
             send_in_app=True,
+            template_name='emails/joinrequest_response.html',
+            context={
+                'status': 'rejected',
+                'team_name': team.name,
+                'hackathon_title': team.hackathon.title if team.hackathon else 'Hackathon',
+                'organizer_name': organizer_name,
+                'action_url': f"/hackathons/{team.hackathon.id}" if team.hackathon else "/hackathons",
+                'action_text': 'Find Another Team',
+                'user': join_request.user,
+            },
             data={'team_id': team.id, 'action': 'join_request_rejected'}
         )
 

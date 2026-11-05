@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Invitation to Judge: {{ hackathon_title }}</title>
+  <style type="text/css">
+    body, table, td, a {
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+    table, td {
+      mso-table-lspace: 0pt;
+      mso-table-rspace: 0pt;
+    }
+    img {
+      -ms-interpolation-mode: bicubic;
+      border: 0;
+      height: auto;
+      line-height: 100%;
+      outline: none;
+      text-decoration: none;
+    }
+    body {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+      background-color: #0B1020;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #334155;
+    }
+    .wrapper {
+      width: 100% !important;
+      background-color: #0B1020;
+      padding: 40px 0;
+    }
+    .main-table {
+      background-color: #ffffff;
+      margin: 0 auto;
+      max-width: 600px;
+      width: 100%;
+      border-radius: 14px;
+      overflow: hidden;
+      border-collapse: separate;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    }
+    .header {
+      background-color: #0B1020 !important;
+      padding: 32px 24px;
+      text-align: center;
+      border-bottom: 1px solid #1E293B;
+    }
+    .content {
+      padding: 40px 36px;
+    }
+    .badge-judge {
+      display: inline-block;
+      background-color: #EEF2FF;
+      color: #4F46E5;
+      border: 1px solid #C7D2FE;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    .headline {
+      color: #0F172A;
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.3;
+      margin: 0 0 14px 0;
+    }
+    .paragraph {
+      color: #475569;
+      font-size: 15px;
+      line-height: 1.65;
+      margin: 0 0 20px 0;
+    }
+    .details-card {
+      background-color: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin: 24px 0 28px 0;
+    }
+    .detail-row {
+      padding: 8px 0;
+      font-size: 14px;
+      border-bottom: 1px solid #EEF2F6;
+    }
+    .detail-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .btn-judge {
+      background-color: #6A4BFF;
+      color: #FFFFFF !important;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 14px 34px;
+      border-radius: 8px;
+      display: inline-block;
+      box-shadow: 0 4px 14px rgba(106, 75, 255, 0.35);
+    }
+    .highlights-box {
+      background-color: #FAF5FF;
+      border-left: 4px solid #A855F7;
+      padding: 16px 20px;
+      border-radius: 6px;
+      margin: 26px 0 0 0;
+      text-align: left;
+    }
+    .footer {
+      background-color: #F8FAFC;
+      border-top: 1px solid #E2E8F0;
+      padding: 24px 30px;
+      text-align: center;
+      font-size: 12px;
+      color: #94A3B8;
+      line-height: 1.6;
+    }
+    .footer a {
+      color: #6A4BFF;
+      text-decoration: none;
+    }
+    @media only screen and (max-width: 600px) {
+      .content {
+        padding: 28px 20px !important;
+      }
+      .main-table {
+        border-radius: 0 !important;
+      }
+      .detail-row {
+        padding: 10px 0;
+      }
+    }
+  </style>
+</head>
+<body bgcolor="#0B1020" style="margin: 0; padding: 0; background-color: #0B1020;">
+  <table role="presentation" width="100%" bgcolor="#0B1020" cellpadding="0" cellspacing="0" border="0" style="background-color: #0B1020; width: 100%;">
+    <tr>
+      <td align="center" style="padding: 40px 10px;">
+        <!-- Email Container -->
+        <table role="presentation" class="main-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 14px; overflow: hidden;">
+          <!-- Header with Official Vortexis Logo -->
+          <tr>
+            <td class="header" align="center" bgcolor="#0B1020" style="background-color: #0B1020 !important; padding: 32px 24px; text-align: center; border-bottom: 1px solid #1E293B;">
+              <a href="{{ site_url|default:'https://vortexis.io' }}" target="_blank" style="text-decoration: none; display: inline-block;">
+                <img src="{{ logo_url|default:'https://res.cloudinary.com/dvuwy2tny/image/upload/v1793870771/vortexis_logo_white.png' }}" 
+                     alt="Vortexis" 
+                     width="160" 
+                     height="37" 
+                     border="0" 
+                     style="display: block; margin: 0 auto; width: 160px; max-width: 160px; height: 37px; border: 0; outline: none; text-decoration: none;" />
+              </a>
+            </td>
+          </tr>
+
+          <!-- Main Content -->
+          <tr>
+            <td class="content" style="padding: 40px 36px; text-align: left;">
+              <!-- Judge Badge -->
+              <span class="badge-judge" style="display: inline-block; background-color: #EEF2FF; color: #4F46E5; border: 1px solid #C7D2FE; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; padding: 6px 14px; border-radius: 9999px; text-transform: uppercase; margin-bottom: 18px;">
+                &#9878; Request to Join as Judge
+              </span>
+
+              <h1 class="headline" style="color: #0F172A; font-size: 24px; font-weight: 800; line-height: 1.3; margin: 0 0 14px 0;">
+                You're invited to judge {{ hackathon_title }}
+              </h1>
+
+              <p class="paragraph" style="color: #475569; font-size: 15px; line-height: 1.65; margin: 0 0 20px 0;">
+                Hello{% if user.first_name %} <strong>{{ user.first_name }}</strong>{% elif user.username %} <strong>{{ user.username }}</strong>{% endif %},<br>
+                You have been requested to join as an official judge for <strong>&ldquo;{{ hackathon_title }}&rdquo;</strong>{% if invited_by_name %} by <strong>{{ invited_by_name }}</strong>{% endif %} on Vortexis.
+              </p>
+              
+              <p class="paragraph" style="color: #475569; font-size: 15px; line-height: 1.65; margin: 0 0 20px 0;">
+                As a judge, your insights and industry expertise will play a vital role in evaluating innovative submissions, providing feedback to participants, and picking the winning projects.
+              </p>
+
+              <!-- Hackathon Details Card -->
+              <div class="details-card" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 18px 22px; margin: 24px 0 28px 0;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td class="detail-row" style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
+                      <span style="color: #64748B; font-weight: 500; display: inline-block; width: 110px;">Hackathon:</span>
+                      <strong style="color: #0F172A;">{{ hackathon_title }}</strong>
+                    </td>
+                  </tr>
+                  {% if organizer_name %}
+                  <tr>
+                    <td class="detail-row" style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
+                      <span style="color: #64748B; font-weight: 500; display: inline-block; width: 110px;">Organizer:</span>
+                      <span style="color: #0F172A; font-weight: 600;">{{ organizer_name }}</span>
+                    </td>
+                  </tr>
+                  {% endif %}
+                  {% if hackathon.venue %}
+                  <tr>
+                    <td class="detail-row" style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
+                      <span style="color: #64748B; font-weight: 500; display: inline-block; width: 110px;">Format:</span>
+                      <span style="color: #0F172A; font-weight: 600;">{{ hackathon.venue }}</span>
+                    </td>
+                  </tr>
+                  {% endif %}
+                  {% if hackathon.start_date and hackathon.end_date %}
+                  <tr>
+                    <td class="detail-row" style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
+                      <span style="color: #64748B; font-weight: 500; display: inline-block; width: 110px;">Timeline:</span>
+                      <span style="color: #0F172A; font-weight: 600;">{{ hackathon.start_date|date:"M j, Y" }} &ndash; {{ hackathon.end_date|date:"M j, Y" }}</span>
+                    </td>
+                  </tr>
+                  {% endif %}
+                  <tr>
+                    <td class="detail-row" style="padding: 8px 0; font-size: 14px;">
+                      <span style="color: #64748B; font-weight: 500; display: inline-block; width: 110px;">Your Role:</span>
+                      <span style="color: #4F46E5; font-weight: 700;">&#9679; Official Judge</span>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+
+              <!-- CTA Button -->
+              <div style="text-align: center; margin: 32px 0 28px 0;">
+                <a href="{{ accept_url|default:'#' }}" class="btn-judge" style="background-color: #6A4BFF; color: #FFFFFF !important; text-decoration: none; font-size: 15px; font-weight: 600; padding: 14px 36px; border-radius: 8px; display: inline-block;">
+                  {{ action_text|default:'Accept Judge Invitation' }} &rarr;
+                </a>
+              </div>
+
+              <!-- Judge Highlights / Responsibilities -->
+              <div class="highlights-box" style="background-color: #FAF5FF; border-left: 4px solid #A855F7; padding: 16px 20px; border-radius: 6px; margin: 26px 0 0 0;">
+                <strong style="color: #581C87; font-size: 14px; display: block; margin-bottom: 6px;">As a judge, you will:</strong>
+                <ul style="margin: 0; padding-left: 20px; color: #6B21A8; font-size: 13px; line-height: 1.6;">
+                  <li>Evaluate submissions based on innovation, technical implementation, and impact.</li>
+                  <li>Provide feedback and encouragement to competing builders.</li>
+                  <li>Access dedicated judging rubrics and organizer channels.</li>
+                </ul>
+              </div>
+
+              <p style="color: #94A3B8; font-size: 13px; line-height: 1.5; margin: 24px 0 0 0;">
+                This invitation is valid for <strong>7 days</strong>. If you do not yet have a Vortexis account, clicking the button above will guide you through quick registration to claim your judge seat.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td class="footer" style="background-color: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 24px 30px; text-align: center; font-size: 12px; color: #94A3B8; line-height: 1.6;">
+              <p style="margin: 0 0 8px 0; font-weight: 600; color: #64748B;">Vortexis Hackathon Platform</p>
+              <p style="margin: 0 0 12px 0;">
+                <a href="{{ site_url|default:'https://vortexis.io' }}/hackathons" style="color: #6A4BFF; text-decoration: none; margin: 0 8px;">Explore Hackathons</a> &bull;
+                <a href="{{ site_url|default:'https://vortexis.io' }}/judging" style="color: #6A4BFF; text-decoration: none; margin: 0 8px;">Judging Portal</a> &bull;
+                <a href="{{ site_url|default:'https://vortexis.io' }}/help" style="color: #6A4BFF; text-decoration: none; margin: 0 8px;">Help Center</a>
+              </p>
+              <p style="margin: 0; font-size: 11px; color: #94A3B8;">
+                &copy; Vortexis. All rights reserved.<br>
+                If you were not expecting this invitation, you can safely ignore this email.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+

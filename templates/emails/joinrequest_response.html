@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>{% if status == 'approved' or status == 'accepted' %}Join Request Approved: {{ team_name }}{% else %}Join Request Update: {{ team_name }}{% endif %}</title>
+  <style type="text/css">
+    body, table, td, a {
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+    table, td {
+      mso-table-lspace: 0pt;
+      mso-table-rspace: 0pt;
+    }
+    img {
+      -ms-interpolation-mode: bicubic;
+      border: 0;
+      height: auto;
+      line-height: 100%;
+      outline: none;
+      text-decoration: none;
+    }
+    body {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+      background-color: #0B1020;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #334155;
+    }
+    .wrapper {
+      width: 100% !important;
+      background-color: #0B1020;
+      padding: 40px 0;
+    }
+    .main-table {
+      background-color: #ffffff;
+      margin: 0 auto;
+      max-width: 600px;
+      width: 100%;
+      border-radius: 14px;
+      overflow: hidden;
+      border-collapse: separate;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    }
+    .header {
+      background-color: #0B1020 !important;
+      padding: 32px 24px;
+      text-align: center;
+      border-bottom: 1px solid #1E293B;
+    }
+    .content {
+      padding: 40px 36px;
+    }
+    .badge-approved {
+      display: inline-block;
+      background-color: #ECFDF5;
+      color: #059669;
+      border: 1px solid #A7F3D0;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    .badge-rejected {
+      display: inline-block;
+      background-color: #FFF1F2;
+      color: #E11D48;
+      border: 1px solid #FECDD3;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    .headline {
+      color: #0F172A;
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.3;
+      margin: 0 0 14px 0;
+    }
+    .paragraph {
+      color: #475569;
+      font-size: 15px;
+      line-height: 1.65;
+      margin: 0 0 20px 0;
+    }
+    .details-card {
+      background-color: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin: 24px 0 28px 0;
+    }
+    .detail-row {
+      padding: 8px 0;
+      font-size: 14px;
+      border-bottom: 1px solid #EEF2F6;
+    }
+    .detail-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .detail-label {
+      color: #64748B;
+      font-weight: 500;
+      width: 32%;
+      display: inline-block;
+      vertical-align: top;
+    }
+    .detail-value {
+      color: #0F172A;
+      font-weight: 600;
+      width: 66%;
+      display: inline-block;
+      vertical-align: top;
+    }
+    .btn-approved {
+      background-color: #6A4BFF;
+      color: #FFFFFF !important;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 14px 32px;
+      border-radius: 8px;
+      display: inline-block;
+      box-shadow: 0 4px 12px rgba(106, 75, 255, 0.3);
+    }
+    .btn-rejected {
+      background-color: #0F172A;
+      color: #FFFFFF !important;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 14px 32px;
+      border-radius: 8px;
+      display: inline-block;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+    }
+    .tips-box {
+      background-color: #F0FDF4;
+      border-left: 4px solid #10B981;
+      padding: 14px 18px;
+      border-radius: 6px;
+      margin: 24px 0 0 0;
+      text-align: left;
+    }
+    .tips-box-rejected {
+      background-color: #F8FAFC;
+      border-left: 4px solid #64748B;
+      padding: 14px 18px;
+      border-radius: 6px;
+      margin: 24px 0 0 0;
+      text-align: left;
+    }
+    .footer {
+      background-color: #F8FAFC;
+      border-top: 1px solid #E2E8F0;
+      padding: 24px 30px;
+      text-align: center;
+      font-size: 12px;
+      color: #94A3B8;
+      line-height: 1.6;
+    }
+    .footer a {
+      color: #6A4BFF;
+      text-decoration: none;
+    }
+    @media only screen and (max-width: 600px) {
+      .content {
+        padding: 28px 20px !important;
+      }
+      .main-table {
+        border-radius: 0 !important;
+      }
+      .detail-label, .detail-value {
+        width: 100% !important;
+        display: block !important;
+      }
+      .detail-value {
+        margin-top: 4px;
+      }
+      .detail-row {
+        padding: 10px 0;
+      }
+    }
+  </style>
+</head>
+<body bgcolor="#0B1020" style="margin: 0; padding: 0; background-color: #0B1020;">
+  <table role="presentation" width="100%" bgcolor="#0B1020" cellpadding="0" cellspacing="0" border="0" style="background-color: #0B1020; width: 100%;">
+    <tr>
+      <td align="center" style="padding: 40px 10px;">
+        <!-- Email Card -->
+        <table role="presentation" class="main-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 14px; overflow: hidden;">
+          <!-- Header with Official Vortexis Logo -->
+          <tr>
+            <td class="header" align="center" bgcolor="#0B1020" style="background-color: #0B1020 !important; padding: 32px 24px; text-align: center; border-bottom: 1px solid #1E293B;">
+              <a href="{{ site_url|default:'https://vortexis.io' }}" target="_blank" style="text-decoration: none; display: inline-block;">
+                <img src="{{ logo_url|default:'https://res.cloudinary.com/dvuwy2tny/image/upload/v1793870771/vortexis_logo_white.png' }}" 
+                     alt="Vortexis" 
+                     width="160" 
+                     height="37" 
+                     border="0" 
+                     style="display: block; margin: 0 auto; width: 160px; max-width: 160px; height: 37px; border: 0; outline: none; text-decoration: none;" />
+              </a>
+            </td>
+          </tr>
+
+          <!-- Main Content -->
+          <tr>
+            <td class="content" style="padding: 40px 36px;">
+              {% if status == 'approved' or status == 'accepted' %}
+                <!-- APPROVED STATE -->
+                <div style="text-align: left;">
+                  <span class="badge-approved" style="display: inline-block; background-color: #ECFDF5; color: #059669; border: 1px solid #A7F3D0; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; padding: 6px 14px; border-radius: 9999px; text-transform: uppercase; margin-bottom: 18px;">
+                    &#10003; Request Approved
+                  </span>
+                  <h1 class="headline" style="color: #0F172A; font-size: 24px; font-weight: 800; line-height: 1.3; margin: 0 0 14px 0;">
+                    You're on the team!
+                  </h1>
+                  <p class="paragraph" style="color: #475569; font-size: 15px; line-height: 1.65; margin: 0 0 20px 0;">
+                    Hi <strong>{{ user.first_name|default:user.username }}</strong>,<br>
+                    Great news! Your request to join team <strong>&ldquo;{{ team_name }}&rdquo;</strong> for <strong>{{ hackathon_title }}</strong> has been approved by the team organizer.
+                  </p>
+
+                  <!-- Team Details Card -->
+                  <div class="details-card" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 18px 22px; margin: 24px 0 28px 0;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td class="detail-row" style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
+                          <span style="color: #64748B; font-weight: 500; display: inline-block; width: 110px;">Team:</span>
+                          <strong style="color: #0F172A;">{{ team_name }}</strong>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td class="detail-row" style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
+                          <span style="color: #64748B; font-weight: 500; display: inline-block; width: 110px;">Hackathon:</span>
+                          <strong style="color: #0F172A;">{{ hackathon_title }}</strong>
+                        </td>
+                      </tr>
+                      {% if organizer_name %}
+                      <tr>
+                        <td class="detail-row" style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
+                          <span style="color: #64748B; font-weight: 500; display: inline-block; width: 110px;">Team Lead:</span>
+                          <span style="color: #0F172A; font-weight: 600;">{{ organizer_name }}</span>
+                        </td>
+                      </tr>
+                      {% endif %}
+                      <tr>
+                        <td class="detail-row" style="padding: 8px 0; font-size: 14px;">
+                          <span style="color: #64748B; font-weight: 500; display: inline-block; width: 110px;">Status:</span>
+                          <span style="color: #059669; font-weight: 700;">&#9679; Member</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <!-- CTA Button -->
+                  <div style="text-align: center; margin: 30px 0 26px 0;">
+                    <a href="{{ action_url|default:'/' }}" class="btn-approved" style="background-color: #6A4BFF; color: #FFFFFF !important; text-decoration: none; font-size: 15px; font-weight: 600; padding: 14px 34px; border-radius: 8px; display: inline-block;">
+                      {{ action_text|default:'View Team Workspace' }} &rarr;
+                    </a>
+                  </div>
+
+                  <!-- Next Steps Tip -->
+                  <div class="tips-box" style="background-color: #F0FDF4; border-left: 4px solid #10B981; padding: 14px 18px; border-radius: 6px; margin: 24px 0 0 0;">
+                    <strong style="color: #065F46; font-size: 14px; display: block; margin-bottom: 4px;">Next steps:</strong>
+                    <span style="color: #047857; font-size: 13px; line-height: 1.5;">
+                      Head over to your team workspace to say hello in team chat, align on roles, and start building your submission!
+                    </span>
+                  </div>
+                </div>
+
+              {% else %}
+                <!-- REJECTED STATE -->
+                <div style="text-align: left;">
+                  <span class="badge-rejected" style="display: inline-block; background-color: #FFF1F2; color: #E11D48; border: 1px solid #FECDD3; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; padding: 6px 14px; border-radius: 9999px; text-transform: uppercase; margin-bottom: 18px;">
+                    Request Update
+                  </span>
+                  <h1 class="headline" style="color: #0F172A; font-size: 24px; font-weight: 800; line-height: 1.3; margin: 0 0 14px 0;">
+                    Update on your join request
+                  </h1>
+                  <p class="paragraph" style="color: #475569; font-size: 15px; line-height: 1.65; margin: 0 0 20px 0;">
+                    Hi <strong>{{ user.first_name|default:user.username }}</strong>,<br>
+                    Thank you for your interest in joining <strong>&ldquo;{{ team_name }}&rdquo;</strong> for <strong>{{ hackathon_title }}</strong>. The team organizer was unable to accept your join request at this time.
+                  </p>
+
+                  <!-- Team Details Card -->
+                  <div class="details-card" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 18px 22px; margin: 24px 0 28px 0;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td class="detail-row" style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
+                          <span style="color: #64748B; font-weight: 500; display: inline-block; width: 110px;">Team:</span>
+                          <strong style="color: #0F172A;">{{ team_name }}</strong>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td class="detail-row" style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
+                          <span style="color: #64748B; font-weight: 500; display: inline-block; width: 110px;">Hackathon:</span>
+                          <strong style="color: #0F172A;">{{ hackathon_title }}</strong>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td class="detail-row" style="padding: 8px 0; font-size: 14px;">
+                          <span style="color: #64748B; font-weight: 500; display: inline-block; width: 110px;">Status:</span>
+                          <span style="color: #E11D48; font-weight: 600;">Declined</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <!-- CTA Button -->
+                  <div style="text-align: center; margin: 30px 0 26px 0;">
+                    <a href="{{ action_url|default:'/' }}" class="btn-rejected" style="background-color: #0F172A; color: #FFFFFF !important; text-decoration: none; font-size: 15px; font-weight: 600; padding: 14px 34px; border-radius: 8px; display: inline-block;">
+                      {{ action_text|default:'Find Another Team' }} &rarr;
+                    </a>
+                  </div>
+
+                  <!-- Encouragement Note -->
+                  <div class="tips-box-rejected" style="background-color: #F8FAFC; border-left: 4px solid #64748B; padding: 14px 18px; border-radius: 6px; margin: 24px 0 0 0;">
+                    <strong style="color: #1E293B; font-size: 14px; display: block; margin-bottom: 4px;">Don't stop here:</strong>
+                    <span style="color: #475569; font-size: 13px; line-height: 1.5;">
+                      Other teams are still recruiting members for this hackathon! You can also create your own team and invite other participants to join you.
+                    </span>
+                  </div>
+                </div>
+              {% endif %}
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td class="footer" style="background-color: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 24px 30px; text-align: center; font-size: 12px; color: #94A3B8; line-height: 1.6;">
+              <p style="margin: 0 0 8px 0; font-weight: 600; color: #64748B;">Vortexis Hackathon Platform</p>
+              <p style="margin: 0 0 12px 0;">
+                <a href="{{ site_url|default:'https://vortexis.io' }}/hackathons" style="color: #6A4BFF; text-decoration: none; margin: 0 8px;">Explore Hackathons</a> &bull;
+                <a href="{{ site_url|default:'https://vortexis.io' }}/teams" style="color: #6A4BFF; text-decoration: none; margin: 0 8px;">My Teams</a> &bull;
+                <a href="{{ site_url|default:'https://vortexis.io' }}/help" style="color: #6A4BFF; text-decoration: none; margin: 0 8px;">Help Center</a>
+              </p>
+              <p style="margin: 0; font-size: 11px; color: #94A3B8;">
+                &copy; Vortexis. All rights reserved.<br>
+                You received this email because of activity associated with your Vortexis account.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+
