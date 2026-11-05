@@ -78,6 +78,35 @@ class SubmitProjectSerializer(serializers.Serializer):
         project = Project.objects.select_related('team', 'hackathon').get(id=project_id)
         hackathon = Hackathon.objects.get(id=hackathon_id)
 
+        # Update deliverables if provided directly in the submission request
+        request = self.context.get('request')
+        if request and hasattr(request, 'data'):
+            data = request.data
+            delivs = data.get('deliverables') if isinstance(data.get('deliverables'), dict) else data
+
+            github = delivs.get('github_url') or delivs.get('github') or delivs.get('repo_url')
+            live = delivs.get('live_link') or delivs.get('live_url') or delivs.get('demo_link')
+            video = (delivs.get('demo_video_url') or delivs.get('video_url') or 
+                     delivs.get('video_link') or delivs.get('demo_url'))
+            pres = (delivs.get('presentation_link') or delivs.get('presentation_url') or 
+                    delivs.get('slides_url') or delivs.get('pitch_deck'))
+
+            updated = False
+            if github and project.github_url != github:
+                project.github_url = github
+                updated = True
+            if live and project.live_link != live:
+                project.live_link = live
+                updated = True
+            if video and project.demo_video_url != video:
+                project.demo_video_url = video
+                updated = True
+            if pres and project.presentation_link != pres:
+                project.presentation_link = pres
+                updated = True
+            if updated:
+                project.save()
+
         submission = Submission.objects.create(project=project, hackathon=hackathon, team=project.team)
         return submission
 
@@ -100,10 +129,20 @@ class SubmissionSerializer(serializers.ModelSerializer):
             'id': obj.project.id,
             'title': obj.project.title,
             'description': obj.project.description,
-            'github_url': obj.project.github_url,
-            'demo_video_url': obj.project.demo_video_url,
-            'live_link': obj.project.live_link,
-            'presentation_link': obj.project.presentation_link,
+            'github_url': obj.project.github_url or '',
+            'live_link': obj.project.live_link or '',
+            'demo_video_url': obj.project.demo_video_url or '',
+            'presentation_link': obj.project.presentation_link or '',
+            'video_url': obj.project.demo_video_url or '',
+            'presentation_url': obj.project.presentation_link or '',
+            'deliverables': {
+                'github_url': obj.project.github_url or '',
+                'live_link': obj.project.live_link or '',
+                'demo_video_url': obj.project.demo_video_url or '',
+                'presentation_link': obj.project.presentation_link or '',
+                'video_url': obj.project.demo_video_url or '',
+                'presentation_url': obj.project.presentation_link or '',
+            },
             'created_at': obj.project.created_at,
             'updated_at': obj.project.updated_at
         }
@@ -171,6 +210,36 @@ class CreateSubmissionSerializer(serializers.ModelSerializer):
         hackathon = self.context.get('hackathon')
         project_id = validated_data['project']
         project = Project.objects.get(id=project_id)
+
+        # Update deliverables if provided in request
+        request = self.context.get('request')
+        if request and hasattr(request, 'data'):
+            data = request.data
+            delivs = data.get('deliverables') if isinstance(data.get('deliverables'), dict) else data
+
+            github = delivs.get('github_url') or delivs.get('github') or delivs.get('repo_url')
+            live = delivs.get('live_link') or delivs.get('live_url') or delivs.get('demo_link')
+            video = (delivs.get('demo_video_url') or delivs.get('video_url') or 
+                     delivs.get('video_link') or delivs.get('demo_url'))
+            pres = (delivs.get('presentation_link') or delivs.get('presentation_url') or 
+                    delivs.get('slides_url') or delivs.get('pitch_deck'))
+
+            updated = False
+            if github and project.github_url != github:
+                project.github_url = github
+                updated = True
+            if live and project.live_link != live:
+                project.live_link = live
+                updated = True
+            if video and project.demo_video_url != video:
+                project.demo_video_url = video
+                updated = True
+            if pres and project.presentation_link != pres:
+                project.presentation_link = pres
+                updated = True
+            if updated:
+                project.save()
+
         return Submission.objects.create(
             project=project,
             hackathon=hackathon,
@@ -204,9 +273,40 @@ class ReviewSerializer(serializers.ModelSerializer):
         model = Review
         fields = ['id', 'submission', 'judge', 'hackathon_id', 'innovation_score', 'technical_score', 'user_experience_score', 'impact_score', 'presentation_score', 'overall_score', 'review', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at', 'judge']
+        extra_kwargs = {
+            'innovation_score': {'required': False, 'default': 0},
+            'technical_score': {'required': False, 'default': 0},
+            'user_experience_score': {'required': False, 'default': 0},
+            'impact_score': {'required': False, 'default': 0},
+            'presentation_score': {'required': False, 'default': 0},
+            'overall_score': {'required': False},
+            'review': {'required': False, 'allow_blank': True},
+        }
+
+    def to_internal_value(self, data):
+        data = data.copy() if hasattr(data, 'copy') else dict(data)
+        
+        # Accept submission_id as submission
+        if not data.get('submission') and data.get('submission_id'):
+            data['submission'] = data.get('submission_id')
+
+        # Accept comment / feedback aliases
+        if not data.get('review') and (data.get('feedback') or data.get('comment') or data.get('comments')):
+            data['review'] = data.get('feedback') or data.get('comment') or data.get('comments')
+
+        # Accept ux_score alias
+        if not data.get('user_experience_score') and data.get('ux_score'):
+            data['user_experience_score'] = data.get('ux_score')
+
+        return super().to_internal_value(data)
 
     def get_judge(self, obj):
-        return {'id': obj.judge.id, 'username': obj.judge.username}
+        return {
+            'id': obj.judge.id,
+            'username': obj.judge.username,
+            'first_name': obj.judge.first_name,
+            'last_name': obj.judge.last_name,
+        }
 
     def get_hackathon_id(self, obj):
         return obj.submission.hackathon.id
@@ -215,23 +315,41 @@ class ReviewSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         user = request.user
         submission = data['submission']
-        if submission.hackathon not in user.judged_hackathons.all():
-            raise serializers.ValidationError("You are not authorized to review this submission.")
+
+        # Check if user is a registered judge for this hackathon
+        is_assigned_judge = (
+            submission.hackathon in user.judged_hackathons.all() or
+            user in submission.hackathon.judges.all() or
+            user.is_admin
+        )
+        if not is_assigned_judge:
+            raise serializers.ValidationError("You are not authorized as a judge for this hackathon.")
 
         # Only check for duplicate reviews when creating (not updating)
         existing_review = Review.objects.filter(submission=submission, judge=user)
         if self.instance:
-            # If updating, exclude the current instance
             existing_review = existing_review.exclude(pk=self.instance.pk)
 
         if existing_review.exists():
-            raise serializers.ValidationError("You have already reviewed this submission.")
+            raise serializers.ValidationError("You have already reviewed this submission. Use PUT/PATCH to update your review.")
+
+        # If overall_score is not passed, automatically compute the average of the 5 criteria
+        sub_criteria = ['innovation_score', 'technical_score', 'user_experience_score', 'impact_score', 'presentation_score']
+        for field in sub_criteria:
+            if field not in data or data.get(field) is None:
+                data[field] = 0
+
+        if 'overall_score' not in data or data.get('overall_score') is None:
+            scores = [data[f] for f in sub_criteria]
+            data['overall_score'] = round(sum(scores) / len(scores)) if scores else 0
 
         # Validate all score fields are between 0 and 10
-        for field in ['innovation_score', 'technical_score', 'user_experience_score', 'impact_score', 'presentation_score', 'overall_score']:
+        all_score_fields = sub_criteria + ['overall_score']
+        for field in all_score_fields:
             value = data.get(field)
             if value is not None and (value < 0 or value > 10):
-                raise serializers.ValidationError({field: "Score must be between 0 and 10."})
+                raise serializers.ValidationError({field: "Score must be an integer between 0 and 10."})
+
         return data
 
 
