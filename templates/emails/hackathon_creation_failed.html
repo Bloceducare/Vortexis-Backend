@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hackathon Creation Failed</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      color: #334155;
+    }
+    .wrapper {
+      width: 100%;
+      table-layout: fixed;
+      background-color: #0f172a;
+      padding: 40px 0;
+    }
+    .main-table {
+      background-color: #ffffff;
+      margin: 0 auto;
+      max-width: 600px;
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    }
+    .header {
+      background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+      padding: 32px 40px;
+      text-align: center;
+      border-bottom: 2px solid #ef4444;
+    }
+    .brand-title {
+      color: #ffffff;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      margin: 0;
+      text-transform: uppercase;
+    }
+    .brand-subtitle {
+      color: #94a3b8;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+    .content {
+      padding: 36px 40px;
+    }
+    .alert-badge {
+      display: inline-block;
+      background-color: #fee2e2;
+      color: #dc2626;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+    }
+    .heading {
+      color: #0f172a;
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 0 12px 0;
+    }
+    .intro-text {
+      color: #475569;
+      font-size: 15px;
+      line-height: 1.6;
+      margin: 0 0 24px 0;
+    }
+    .error-card {
+      background-color: #fff1f2;
+      border: 1px solid #fecdd3;
+      border-left: 4px solid #e11d48;
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin: 24px 0;
+    }
+    .error-card-title {
+      color: #9f1239;
+      font-size: 15px;
+      font-weight: 700;
+      margin: 0 0 10px 0;
+      display: flex;
+      align-items: center;
+    }
+    .reasons-list {
+      margin: 0;
+      padding-left: 20px;
+      color: #881337;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .reasons-list li {
+      margin-bottom: 6px;
+    }
+    .hackathon-meta {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 20px 0;
+    }
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      font-size: 14px;
+    }
+    .meta-label {
+      color: #64748b;
+      font-weight: 500;
+    }
+    .meta-value {
+      color: #0f172a;
+      font-weight: 600;
+    }
+    .how-to-fix {
+      background-color: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 24px 0;
+    }
+    .how-to-fix-title {
+      color: #166534;
+      font-size: 14px;
+      font-weight: 700;
+      margin: 0 0 8px 0;
+    }
+    .how-to-fix-text {
+      color: #14532d;
+      font-size: 13px;
+      line-height: 1.5;
+      margin: 0;
+    }
+    .cta-container {
+      text-align: center;
+      margin: 32px 0 12px 0;
+    }
+    .cta-button {
+      background-color: #4f46e5;
+      color: #ffffff !important;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 14px 32px;
+      border-radius: 8px;
+      display: inline-block;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+    }
+    .footer {
+      background-color: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      padding: 24px 40px;
+      text-align: center;
+      font-size: 12px;
+      color: #94a3b8;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <table class="main-table" align="center" cellpadding="0" cellspacing="0" border="0">
+      <!-- Header -->
+      <tr>
+        <td class="header">
+          <div class="brand-title">Vortexis</div>
+          <div class="brand-subtitle">Hackathon Innovation Platform</div>
+        </td>
+      </tr>
+
+      <!-- Content -->
+      <tr>
+        <td class="content">
+          <span class="alert-badge">Creation Failed</span>
+          <h1 class="heading">We couldn't create your hackathon</h1>
+          <p class="intro-text">
+            Hi <strong>{{ user.first_name|default:user.username }}</strong>,<br>
+            Your attempt to create the hackathon <strong>"{{ hackathon_title|default:'Untitled Hackathon' }}"</strong> could not be completed.
+          </p>
+
+          <!-- Hackathon Details -->
+          <div class="hackathon-meta">
+            <div class="meta-row">
+              <span class="meta-label">Attempted Title:</span>
+              <span class="meta-value">{{ hackathon_title|default:"Untitled Hackathon" }}</span>
+            </div>
+            {% if organization_name %}
+            <div class="meta-row">
+              <span class="meta-label">Organization:</span>
+              <span class="meta-value">{{ organization_name }}</span>
+            </div>
+            {% endif %}
+            <div class="meta-row">
+              <span class="meta-label">Date Attempted:</span>
+              <span class="meta-value">Today</span>
+            </div>
+          </div>
+
+          <!-- Real Reasons Card -->
+          <div class="error-card">
+            <div class="error-card-title">&#9888;&#65039; Reason for Failure:</div>
+            <ul class="reasons-list">
+              {% if reasons %}
+                {% for reason in reasons %}
+                  <li>{{ reason }}</li>
+                {% endfor %}
+              {% else %}
+                <li>{{ message|default:"An unexpected validation or permission error occurred." }}</li>
+              {% endif %}
+            </ul>
+          </div>
+
+          <!-- How to resolve -->
+          <div class="how-to-fix">
+            <div class="how-to-fix-title">&#128161; What you can do next:</div>
+            <p class="how-to-fix-text">
+              &#8226; If your organization is pending approval, an administrator will review it shortly.<br>
+              &#8226; Ensure you are an approved organizer with an active organization.<br>
+              &#8226; Check that your submission deadlines and start/end dates are sequential and valid.
+            </p>
+          </div>
+
+          <!-- CTA -->
+          <div class="cta-container">
+            <a href="{{ action_url|default:'/' }}" class="cta-button">
+              {{ action_text|default:'Review & Try Again' }}
+            </a>
+          </div>
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td class="footer">
+          &copy; Vortexis Platform. All rights reserved.<br>
+          If you have questions, please reach out to our support team at <a href="mailto:support@vortexis.com" style="color: #64748b; text-decoration: underline;">support@vortexis.com</a>.
+        </td>
+      </tr>
+    </table>
+  </div>
+</body>
+</html>
+

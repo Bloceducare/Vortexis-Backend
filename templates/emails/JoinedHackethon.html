@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hackathon Registration Confirmed</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #334155;
+    }
+    .wrapper {
+      width: 100%;
+      background-color: #0f172a;
+      padding: 40px 0;
+    }
+    .main-table {
+      background-color: #ffffff;
+      margin: 0 auto;
+      max-width: 600px;
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    }
+    .header {
+      background: linear-gradient(135deg, #1e1b4b 0%, #3b82f6 100%);
+      padding: 32px 40px;
+      text-align: center;
+    }
+    .brand-title {
+      color: #ffffff;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      margin: 0;
+    }
+    .content {
+      padding: 36px 40px;
+    }
+    .badge {
+      display: inline-block;
+      background-color: #dbeafe;
+      color: #1d4ed8;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .card {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 20px 0;
+    }
+    .cta-button {
+      background-color: #2563eb;
+      color: #ffffff !important;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 14px 28px;
+      border-radius: 8px;
+      display: inline-block;
+    }
+    .footer {
+      background-color: #f8fafc;
+      padding: 24px;
+      text-align: center;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <table class="main-table" align="center" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td class="header">
+          <div class="brand-title">VORTEXIS</div>
+        </td>
+      </tr>
+      <tr>
+        <td class="content">
+          <span class="badge">Registration Confirmed</span>
+          <h1 style="color: #0f172a; font-size: 22px; margin-top: 0;">You're registered for {{ hackathon_title }}!</h1>
+          <p style="color: #475569; font-size: 15px; line-height: 1.6;">
+            Hi {{ user.first_name|default:user.username }},<br>
+            Your registration for <strong>{{ hackathon_title }}</strong> has been confirmed. You are now ready to form or join a team and build your project.
+          </p>
+          <div class="card">
+            <p style="margin: 6px 0;"><strong>Hackathon:</strong> {{ hackathon_title }}</p>
+            {% if start_date %}<p style="margin: 6px 0;"><strong>Start Date:</strong> {{ start_date }}</p>{% endif %}
+            {% if end_date %}<p style="margin: 6px 0;"><strong>End Date:</strong> {{ end_date }}</p>{% endif %}
+          </div>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="{{ action_url|default:'/' }}" class="cta-button">Go to Hackathon</a>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td class="footer">
+          &copy; Vortexis Platform. All rights reserved.
+        </td>
+      </tr>
+    </table>
+  </div>
+</body>
+</html>
+

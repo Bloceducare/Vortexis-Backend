@@ -249,6 +249,11 @@ def send_otp_mail(email):
             priority='high',
             send_email=True,
             send_in_app=False,
+            template_name="emails/otp_verification.html",
+            context={
+                'user': user,
+                'otp': otp
+            },
             data={'otp': otp, 'action': 'verify_account'}
         )
         
@@ -301,6 +306,12 @@ Vortexis Team'''
         send_in_app=True,
         action_url=reset_url,
         action_text='Reset Password',
+        template_name="emails/password_reset.html",
+        context={
+            'user': user,
+            'action_url': reset_url,
+            'link': reset_url
+        },
         data={'reset_token': reset_token.token, 'action': 'password_reset'}
     )
 
