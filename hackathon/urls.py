@@ -7,7 +7,8 @@ from .views import (
     HackathonJudgesView, HackathonParticipantsView, OrganizerHackathonsView,
     JoinTeamView, HackathonIndividualParticipantsView, AvailableTeamsView,
     UserRegisteredHackathonsView, JudgeAllReviewsView, HackathonProjectsView,
-    SubmissionProjectDetailView, OrganizationHackathonsView, HackathonStatsView
+    SubmissionProjectDetailView, OrganizationHackathonsView, HackathonStatsView,
+    HackathonLeaderboardView, HackathonLiveReviewsView, HackathonApprovedSubmissionsView
 )
 
 router = DefaultRouter()
@@ -35,6 +36,9 @@ urlpatterns = [
     path('accept-judge-invitation/', AcceptJudgeInvitationView.as_view(), name='accept_judge_invitation'),
     path('<int:hackathon_id>/submit-project/', SubmitProjectView.as_view(), name='project_submit'),
     path('<int:hackathon_id>/projects/', HackathonProjectsView.as_view(), name='hackathon_projects'),
+    path('<int:hackathon_id>/leaderboard/', HackathonLeaderboardView.as_view(), name='hackathon_leaderboard'),
+    path('<int:hackathon_id>/live-reviews/', HackathonLiveReviewsView.as_view(), name='hackathon_live_reviews'),
+    path('<int:hackathon_id>/approved-submissions/', HackathonApprovedSubmissionsView.as_view(), name='hackathon_approved_submissions'),
     path('submissions/<int:submission_id>/project/', SubmissionProjectDetailView.as_view(), name='submission_project_detail'),
     path('skills/', AllSkillsView.as_view(), name='all_skills'),
     path('<int:hackathon_id>/', include(router.urls)),
