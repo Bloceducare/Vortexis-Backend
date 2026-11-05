@@ -1,1 +1,86 @@
-{% include "emails/Welcome.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to Vortexis</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #334155;
+    }
+    .wrapper {
+      width: 100%;
+      background-color: #0f172a;
+      padding: 40px 0;
+    }
+    .main-table {
+      background-color: #ffffff;
+      margin: 0 auto;
+      max-width: 600px;
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    }
+    .header {
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+      padding: 36px 40px;
+      text-align: center;
+    }
+    .content {
+      padding: 36px 40px;
+    }
+    .cta-button {
+      background-color: #4f46e5;
+      color: #ffffff !important;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 14px 28px;
+      border-radius: 8px;
+      display: inline-block;
+    }
+    .footer {
+      background-color: #f8fafc;
+      padding: 24px;
+      text-align: center;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <table class="main-table" align="center" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td class="header">
+          <img src="{{ logo_url|default:'https://res.cloudinary.com/dvuwy2tny/image/upload/v1793870771/vortexis_logo_white.png' }}" alt="Vortexis" height="36" style="height: 36px; max-height: 36px; border: 0; display: inline-block;" />
+        </td>
+      </tr>
+      <tr>
+        <td class="content">
+          <h1 style="color: #0f172a; font-size: 22px; margin-top: 0;">Welcome to Vortexis, {{ user.first_name|default:user.username }}!</h1>
+          <p style="color: #475569; font-size: 15px; line-height: 1.6;">
+            We're thrilled to have you here. Vortexis is the premier hackathon platform connecting innovators, builders, and organizations from around the globe.
+          </p>
+          <p style="color: #475569; font-size: 15px; line-height: 1.6;">
+            Explore open hackathons, build game-changing projects, or launch your own hackathon with our suite of organizer tools.
+          </p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="{{ link|default:'/' }}" class="cta-button">Explore Hackathons</a>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td class="footer">
+          &copy; Vortexis Platform. All rights reserved.
+        </td>
+      </tr>
+    </table>
+  </div>
+</body>
+</html>
