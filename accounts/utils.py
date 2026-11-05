@@ -318,8 +318,16 @@ Vortexis Team'''
 
 def send_judge_invitation_email(email_address, hackathon, invitation_token, request):
     # Get frontend URL from request origin
-    origin = request.META.get('HTTP_ORIGIN') or f"http://{request.get_host()}"
+    if request:
+        origin = request.META.get('HTTP_ORIGIN') or f"http://{request.get_host()}"
+    else:
+        origin = "https://vortexis.io"
     accept_url = f"{origin}/judge-invitation?token={invitation_token}"
+
+    organizer_name = None
+    if hackathon.organization and hackathon.organization.organizer:
+        organizer = hackathon.organization.organizer
+        organizer_name = (organizer.first_name + ' ' + organizer.last_name).strip() or organizer.username
 
     subject = f'Invitation to Judge {hackathon.title}'
     message = f'''Hello,
@@ -346,9 +354,23 @@ If you did not expect this invitation, please ignore this email.
 Regards,
 Vortexis Team'''
 
-    # Try to get user by email, create a temporary notification if user exists
+    context = {
+        'hackathon': hackathon,
+        'hackathon_title': hackathon.title,
+        'invitation_token': invitation_token,
+        'accept_url': accept_url,
+        'action_url': accept_url,
+        'action_text': 'Accept Judge Invitation',
+        'organizer_name': organizer_name,
+        'invited_by_name': organizer_name,
+        'site_url': origin,
+        'email': email_address,
+    }
+
+    # Try to get user by email, create a notification if user exists
     try:
         user = User.objects.get(email=email_address)
+        context['user'] = user
         NotificationService.send_notification(
             user=user,
             title=subject,
@@ -357,13 +379,28 @@ Vortexis Team'''
             priority='high',
             send_email=True,
             send_in_app=True,
+            template_name='emails/judge_invitation.html',
+            context=context,
             action_url=accept_url,
-            action_text='Accept Invitation',
+            action_text='Accept Judge Invitation',
             data={'invitation_token': invitation_token, 'hackathon_id': hackathon.id, 'action': 'judge_invitation'}
         )
     except User.DoesNotExist:
-        # For non-existing users, use direct email
-        from django.core.mail import EmailMessage
-        from_email = settings.DEFAULT_EMAIL_HOST
-        email = EmailMessage(subject, message, from_email=from_email, to=[email_address])
-        email.send(fail_silently=True)
+        # For non-existing users, use direct email with HTML message
+        from django.core.mail import send_mail
+        from django.template.loader import render_to_string
+        try:
+            html_message = render_to_string('emails/judge_invitation.html', context)
+        except Exception as e:
+            logger.error(f"Failed to render judge invitation template: {e}")
+            html_message = None
+
+        from_email = getattr(settings, 'EMAIL_HOST_USER', settings.DEFAULT_EMAIL_HOST) or settings.DEFAULT_EMAIL_HOST
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=from_email,
+            recipient_list=[email_address],
+            html_message=html_message,
+            fail_silently=False
+        )

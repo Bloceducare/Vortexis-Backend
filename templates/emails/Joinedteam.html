@@ -26,9 +26,10 @@
       overflow: hidden;
     }
     .header {
-      background: linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%);
-      padding: 32px 40px;
+      background-color: #0B1020 !important;
+      padding: 32px 24px;
       text-align: center;
+      border-bottom: 1px solid #1E293B;
     }
     .brand-title {
       color: #ffffff;
@@ -80,8 +81,15 @@
   <div class="wrapper">
     <table class="main-table" align="center" cellpadding="0" cellspacing="0" border="0">
       <tr>
-        <td class="header">
-          <img src="{{ logo_url|default:'https://res.cloudinary.com/dvuwy2tny/image/upload/v1793870771/vortexis_logo_white.png' }}" alt="Vortexis" height="34" style="height: 34px; max-height: 34px; border: 0; display: inline-block;" />
+        <td class="header" align="center" bgcolor="#0B1020" style="background-color: #0B1020 !important; padding: 32px 24px; text-align: center; border-bottom: 1px solid #1E293B;">
+          <a href="{{ site_url|default:'https://vortexis.io' }}" target="_blank" style="text-decoration: none; display: inline-block;">
+            <img src="{{ logo_url|default:'https://res.cloudinary.com/dvuwy2tny/image/upload/v1793870771/vortexis_logo_white.png' }}"
+                 alt="Vortexis"
+                 width="160"
+                 height="37"
+                 border="0"
+                 style="display: block; margin: 0 auto; width: 160px; max-width: 160px; height: 37px; border: 0; outline: none; text-decoration: none;" />
+          </a>
         </td>
       </tr>
       <tr>
