@@ -8,13 +8,13 @@
     body {
       margin: 0;
       padding: 0;
-      background-color: #0f172a;
+      background-color: #F8FAFC;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       color: #334155;
     }
     .wrapper {
       width: 100%;
-      background-color: #0f172a;
+      background-color: #F8FAFC;
       padding: 40px 0;
     }
     .main-table {
@@ -24,13 +24,14 @@
       width: 100%;
       border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+      border: 1px solid #E2E8F0;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
     }
     .header {
-      background-color: #0B1020 !important;
-      padding: 32px 24px;
+      background-color: #ffffff !important;
+      padding: 32px 24px 20px 24px;
       text-align: center;
-      border-bottom: 1px solid #1E293B;
+      border-bottom: 1px solid #F1F5F9;
     }
     .content {
       padding: 36px 40px;
@@ -54,13 +55,13 @@
     }
   </style>
 </head>
-<body>
-  <div class="wrapper">
-    <table class="main-table" align="center" cellpadding="0" cellspacing="0" border="0">
+<body bgcolor="#F8FAFC">
+  <div class="wrapper" style="background-color: #F8FAFC;">
+    <table class="main-table" align="center" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #E2E8F0; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);">
       <tr>
-        <td class="header" align="center" bgcolor="#0B1020" style="background-color: #0B1020 !important; padding: 32px 24px; text-align: center; border-bottom: 1px solid #1E293B;">
+        <td class="header" align="center" bgcolor="#FFFFFF" style="background-color: #FFFFFF !important; padding: 32px 24px 20px 24px; text-align: center; border-bottom: 1px solid #F1F5F9;">
           <a href="{{ site_url|default:'https://vortexis.io' }}" target="_blank" style="text-decoration: none; display: inline-block;">
-            <img src="{{ logo_url|default:'https://res.cloudinary.com/dvuwy2tny/image/upload/v1793870771/vortexis_logo_white.png' }}"
+            <img src="{{ logo_url|default:'https://res.cloudinary.com/dvuwy2tny/image/upload/v1793870772/vortexis_logo_color.png' }}"
                  alt="Vortexis"
                  width="160"
                  height="37"
