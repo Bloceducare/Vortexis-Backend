@@ -3,6 +3,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.generics import GenericAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.viewsets import ModelViewSet
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import NotFound
@@ -680,6 +681,17 @@ class SubmitProjectView(GenericAPIView):
                 priority='normal',
                 send_email=True,
                 send_in_app=True,
+                template_name='emails/project_submission_successful.html',
+                context={
+                    'user': member,
+                    'project_title': submission.project.title,
+                    'hackathon_title': submission.hackathon.title,
+                    'team_name': submission.team.name if submission.team else '',
+                    'live_link': submission.project.live_link,
+                    'github_url': submission.project.github_url,
+                    'action_url': f'/submissions/{submission.id}',
+                    'action_text': 'View Your Submission',
+                },
                 data={
                     'project_id': submission.project.id,
                     'project_title': submission.project.title,
@@ -718,9 +730,27 @@ class SubmissionViewSet(ModelViewSet):
             'team__members', 'reviews', 'reviews__judge'
         )
         
+        # Optional filter by approved flag: ?approved=true or ?approved=false
+        approved_filter = self.request.query_params.get('approved')
+        if approved_filter is not None:
+            if approved_filter.lower() in ['true', '1']:
+                base_queryset = base_queryset.filter(approved=True)
+            elif approved_filter.lower() in ['false', '0']:
+                base_queryset = base_queryset.filter(approved=False)
+        
         if not hackathon_id:
-            queryset = base_queryset.filter(team__members=self.request.user)
-        elif self.request.user.is_organizer or self.request.user.is_judge:
+            return base_queryset.filter(team__members=self.request.user).order_by('-created_at')
+            
+        hackathon = Hackathon.objects.filter(id=hackathon_id).first()
+        is_organizer = (
+            (hackathon and hackathon.organization and (
+                hackathon.organization.organizer == self.request.user or
+                self.request.user in hackathon.organization.moderators.all()
+            )) or self.request.user.is_admin
+        )
+        
+        # Organizers, judges, or any request explicitly filtering approved=true can view all matching submissions
+        if is_organizer or self.request.user.is_judge or approved_filter is not None:
             queryset = base_queryset.filter(hackathon_id=hackathon_id)
         else:
             queryset = base_queryset.filter(hackathon_id=hackathon_id, team__members=self.request.user)
@@ -782,10 +812,112 @@ class SubmissionViewSet(ModelViewSet):
                     action_text='View Submission'
                 )
 
+    @action(detail=True, methods=['post'], url_path='approve')
+    def approve(self, request, hackathon_id=None, pk=None):
+        """Approve a submission (Organizer/Admin only)."""
+        submission = self.get_object()
+        hackathon = submission.hackathon
+
+        # Verify permission
+        is_organizer = (
+            (hackathon.organization and (
+                hackathon.organization.organizer == request.user or
+                request.user in hackathon.organization.moderators.all()
+            )) or request.user.is_admin
+        )
+        if not is_organizer:
+            return Response(
+                {"error": "Only the hackathon organizer or moderators can approve submissions."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        submission.approved = True
+        if submission.status == 'pending':
+            submission.status = 'reviewed'
+        submission.save()
+
+        # Send approval notification to all team members
+        for member in submission.team.members.all():
+            NotificationService.send_notification(
+                user=member,
+                title="Submission Approved",
+                message=f"Your submission '{submission.project.title}' for '{submission.hackathon.title}' has been approved.",
+                category='account',
+                priority='high',
+                send_email=True,
+                send_in_app=True,
+                data={
+                    'submission_id': submission.id,
+                    'project_title': submission.project.title,
+                    'hackathon_id': submission.hackathon.id,
+                    'hackathon_title': submission.hackathon.title
+                },
+                action_url=f'/submissions/{submission.id}',
+                action_text='View Submission'
+            )
+
+        return Response({
+            "message": f"Submission for '{submission.project.title}' has been approved.",
+            "submission": SubmissionSerializer(submission).data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='reject')
+    def reject(self, request, hackathon_id=None, pk=None):
+        """Reject a submission (Organizer/Admin only)."""
+        submission = self.get_object()
+        hackathon = submission.hackathon
+
+        # Verify permission
+        is_organizer = (
+            (hackathon.organization and (
+                hackathon.organization.organizer == request.user or
+                request.user in hackathon.organization.moderators.all()
+            )) or request.user.is_admin
+        )
+        if not is_organizer:
+            return Response(
+                {"error": "Only the hackathon organizer or moderators can reject submissions."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        reason = request.data.get('reason', 'Submission does not meet requirements.')
+        submission.approved = False
+        submission.status = 'rejected'
+        submission.save()
+
+        # Send rejection notification to team members
+        for member in submission.team.members.all():
+            NotificationService.send_notification(
+                user=member,
+                title="Submission Update",
+                message=f"Your submission '{submission.project.title}' for '{submission.hackathon.title}' was rejected. Reason: {reason}",
+                category='account',
+                priority='normal',
+                send_email=True,
+                send_in_app=True,
+                data={
+                    'submission_id': submission.id,
+                    'project_title': submission.project.title,
+                    'hackathon_id': submission.hackathon.id,
+                    'reason': reason
+                },
+                action_url=f'/submissions/{submission.id}',
+                action_text='View Submission'
+            )
+
+        return Response({
+            "message": f"Submission for '{submission.project.title}' has been rejected.",
+            "submission": SubmissionSerializer(submission).data
+        }, status=status.HTTP_200_OK)
+
 
 class ReviewViewSet(ModelViewSet):
-    permission_classes = [IsAuthenticated, IsJudge]
     serializer_class = ReviewSerializer
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsJudge()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
@@ -799,11 +931,25 @@ class ReviewViewSet(ModelViewSet):
         )
         
         if not hackathon_id:
-            queryset = base_queryset.filter(judge=self.request.user)
-        else:
-            queryset = base_queryset.filter(submission__hackathon_id=hackathon_id, judge=self.request.user)
+            return base_queryset.filter(judge=self.request.user).order_by('-created_at')
+            
+        hackathon = Hackathon.objects.filter(id=hackathon_id).first()
+        is_organizer = (
+            (hackathon and hackathon.organization and (
+                hackathon.organization.organizer == self.request.user or
+                self.request.user in hackathon.organization.moderators.all()
+            )) or self.request.user.is_admin
+        )
         
-        return queryset.order_by('-created_at')
+        if is_organizer or self.request.user.is_judge:
+            # Organizers and judges can view all reviews for this hackathon
+            return base_queryset.filter(submission__hackathon_id=hackathon_id).order_by('-created_at')
+        else:
+            # Participants can view reviews for their own team's submissions
+            return base_queryset.filter(
+                submission__hackathon_id=hackathon_id,
+                submission__team__members=self.request.user
+            ).order_by('-created_at')
 
     def perform_create(self, serializer):
         serializer.save(judge=self.request.user)
@@ -833,6 +979,16 @@ class ReviewViewSet(ModelViewSet):
                 priority='normal',
                 send_email=True,
                 send_in_app=True,
+                template_name='emails/submission_review.html',
+                context={
+                    'user': member,
+                    'project_title': review.submission.project.title,
+                    'hackathon_title': review.submission.hackathon.title,
+                    'overall_score': review.overall_score,
+                    'review_comments': review.review or 'No comments provided',
+                    'action_url': f'/submissions/{review.submission.id}',
+                    'action_text': 'View Full Review & Scores',
+                },
                 data={
                     'review_id': review.id,
                     'submission_id': review.submission.id,
@@ -1333,6 +1489,373 @@ class SubmissionProjectDetailView(APIView):
             },
             "project": serializer.data
         }, status=status.HTTP_200_OK)
+
+
+class HackathonLeaderboardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={
+            200: "Leaderboard retrieved successfully",
+            404: "Hackathon not found"
+        },
+        operation_description="Get the ranked leaderboard for a hackathon based on judge evaluations and scores.",
+        tags=['hackathons']
+    )
+    def get(self, request, hackathon_id):
+        try:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        is_organizer = (
+            (hackathon.organization and (
+                hackathon.organization.organizer == request.user or
+                request.user in hackathon.organization.moderators.all()
+            )) or request.user.is_admin
+        )
+
+        # Check if results have been released by the organizer
+        if not hackathon.results_released and not is_organizer:
+            return Response({
+                "hackathon": {
+                    "id": hackathon.id,
+                    "title": hackathon.title
+                },
+                "results_released": False,
+                "message": "Results for this hackathon have not been released by the organizer yet. Stay tuned!",
+                "total_submissions": 0,
+                "leaderboard": []
+            }, status=status.HTTP_200_OK)
+
+        # Optional filter: ?approved_only=true
+        approved_only = request.query_params.get('approved_only', 'false').lower() in ['true', '1']
+
+        submissions_qs = Submission.objects.filter(hackathon=hackathon).select_related(
+            'project', 'team', 'team__organizer'
+        ).prefetch_related(
+            'reviews', 'reviews__judge'
+        )
+
+        if approved_only:
+            submissions_qs = submissions_qs.filter(approved=True)
+
+        leaderboard_data = []
+
+        for sub in submissions_qs:
+            reviews = list(sub.reviews.all())
+            reviews_count = len(reviews)
+
+            if reviews_count > 0:
+                avg_overall = round(sum(r.overall_score for r in reviews) / reviews_count, 2)
+                avg_innovation = round(sum(r.innovation_score for r in reviews) / reviews_count, 2)
+                avg_technical = round(sum(r.technical_score for r in reviews) / reviews_count, 2)
+                avg_ux = round(sum(r.user_experience_score for r in reviews) / reviews_count, 2)
+                avg_impact = round(sum(r.impact_score for r in reviews) / reviews_count, 2)
+                avg_presentation = round(sum(r.presentation_score for r in reviews) / reviews_count, 2)
+            else:
+                avg_overall = 0.0
+                avg_innovation = 0.0
+                avg_technical = 0.0
+                avg_ux = 0.0
+                avg_impact = 0.0
+                avg_presentation = 0.0
+
+            leaderboard_data.append({
+                'submission_id': sub.id,
+                'project': {
+                    'id': sub.project.id,
+                    'title': sub.project.title,
+                    'description': sub.project.description,
+                    'github_url': sub.project.github_url,
+                    'demo_video_url': sub.project.demo_video_url,
+                    'live_link': sub.project.live_link,
+                    'presentation_link': sub.project.presentation_link,
+                },
+                'team': {
+                    'id': sub.team.id,
+                    'name': sub.team.name,
+                },
+                'approved': sub.approved,
+                'status': sub.status,
+                'scores': {
+                    'average_overall_score': avg_overall,
+                    'average_innovation_score': avg_innovation,
+                    'average_technical_score': avg_technical,
+                    'average_user_experience_score': avg_ux,
+                    'average_impact_score': avg_impact,
+                    'average_presentation_score': avg_presentation,
+                    'reviews_count': reviews_count,
+                },
+                'reviews': [
+                    {
+                        'id': r.id,
+                        'judge': {
+                            'id': r.judge.id,
+                            'username': r.judge.username,
+                            'first_name': r.judge.first_name,
+                            'last_name': r.judge.last_name,
+                        },
+                        'overall_score': r.overall_score,
+                        'innovation_score': r.innovation_score,
+                        'technical_score': r.technical_score,
+                        'user_experience_score': r.user_experience_score,
+                        'impact_score': r.impact_score,
+                        'presentation_score': r.presentation_score,
+                        'review': r.review,
+                        'created_at': r.created_at
+                    }
+                    for r in reviews
+                ]
+            })
+
+        # Sort descending by average overall score, then by reviews count
+        leaderboard_data.sort(
+            key=lambda item: (item['scores']['average_overall_score'], item['scores']['reviews_count']),
+            reverse=True
+        )
+
+        # Assign ranks
+        for idx, item in enumerate(leaderboard_data, 1):
+            item['rank'] = idx
+
+        response_data = {
+            "hackathon": {
+                "id": hackathon.id,
+                "title": hackathon.title
+            },
+            "results_released": hackathon.results_released,
+            "results_released_at": hackathon.results_released_at,
+            "is_organizer_preview": (not hackathon.results_released and is_organizer),
+            "total_submissions": len(leaderboard_data),
+            "leaderboard": leaderboard_data
+        }
+
+        if not hackathon.results_released and is_organizer:
+            response_data["organizer_notice"] = (
+                "These results are currently in preview mode and NOT released to participants. "
+                "Use POST /release-results/ to officially release them."
+            )
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+class HackathonLiveReviewsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={
+            200: "Live reviews retrieved successfully",
+            404: "Hackathon not found"
+        },
+        operation_description="Get live feed of all judge reviews submitted for a hackathon.",
+        tags=['hackathons']
+    )
+    def get(self, request, hackathon_id):
+        try:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        is_organizer = (
+            (hackathon.organization and (
+                hackathon.organization.organizer == request.user or
+                request.user in hackathon.organization.moderators.all()
+            )) or request.user.is_admin
+        )
+        is_judge = request.user in hackathon.judges.all()
+
+        reviews = Review.objects.filter(
+            submission__hackathon=hackathon
+        ).select_related(
+            'submission', 'submission__project', 'submission__team', 'judge'
+        ).order_by('-created_at')
+
+        # If results have not been released, non-organizers and non-judges only see their own team's reviews
+        if not hackathon.results_released and not (is_organizer or is_judge):
+            reviews = reviews.filter(submission__team__members=request.user)
+
+        data = [
+            {
+                'id': r.id,
+                'submission_id': r.submission.id,
+                'project': {
+                    'id': r.submission.project.id,
+                    'title': r.submission.project.title,
+                    'github_url': r.submission.project.github_url,
+                    'live_link': r.submission.project.live_link,
+                },
+                'team': {
+                    'id': r.submission.team.id,
+                    'name': r.submission.team.name,
+                },
+                'judge': {
+                    'id': r.judge.id,
+                    'username': r.judge.username,
+                    'first_name': r.judge.first_name,
+                    'last_name': r.judge.last_name,
+                },
+                'overall_score': r.overall_score,
+                'innovation_score': r.innovation_score,
+                'technical_score': r.technical_score,
+                'user_experience_score': r.user_experience_score,
+                'impact_score': r.impact_score,
+                'presentation_score': r.presentation_score,
+                'review': r.review,
+                'created_at': r.created_at,
+            }
+            for r in reviews
+        ]
+
+        return Response({
+            "hackathon": {
+                "id": hackathon.id,
+                "title": hackathon.title
+            },
+            "results_released": hackathon.results_released,
+            "total_reviews": len(data),
+            "reviews": data
+        }, status=status.HTTP_200_OK)
+
+
+class HackathonApprovedSubmissionsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={
+            200: "Approved submissions retrieved successfully",
+            404: "Hackathon not found"
+        },
+        operation_description="Get all approved project submissions for a hackathon.",
+        tags=['hackathons']
+    )
+    def get(self, request, hackathon_id):
+        try:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        submissions = Submission.objects.filter(
+            hackathon=hackathon, approved=True
+        ).select_related(
+            'project', 'team', 'hackathon'
+        ).prefetch_related(
+            'reviews', 'reviews__judge'
+        ).order_by('-created_at')
+
+        serializer = SubmissionSerializer(submissions, many=True)
+        return Response({
+            "hackathon": {
+                "id": hackathon.id,
+                "title": hackathon.title
+            },
+            "count": submissions.count(),
+            "submissions": serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class HackathonReleaseResultsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'release': openapi.Schema(type=openapi.TYPE_BOOLEAN, description='True to release/publish results, False to withdraw/hide', default=True),
+            }
+        ),
+        responses={
+            200: "Results release status updated successfully",
+            403: "Only hackathon organizer can release results",
+            404: "Hackathon not found"
+        },
+        operation_description="Organizer endpoint to release or hide the official hackathon results and leaderboard.",
+        tags=['hackathons']
+    )
+    def post(self, request, hackathon_id):
+        try:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        is_organizer = (
+            (hackathon.organization and (
+                hackathon.organization.organizer == request.user or
+                request.user in hackathon.organization.moderators.all()
+            )) or request.user.is_admin
+        )
+        if not is_organizer:
+            return Response(
+                {"error": "Only the hackathon organizer or moderators can release results."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        release = request.data.get('release', True)
+        if isinstance(release, str):
+            release = release.lower() in ['true', '1']
+
+        hackathon.results_released = bool(release)
+        if hackathon.results_released:
+            hackathon.results_released_at = timezone.now()
+        hackathon.save()
+
+        # If results released, notify participants
+        if hackathon.results_released:
+            try:
+                from accounts.models import User
+                from django.db.models import Q
+                participants = User.objects.filter(
+                    Q(hackathon_participations__hackathon=hackathon) |
+                    Q(teams__hackathon=hackathon)
+                ).distinct()
+
+                for participant in participants:
+                    NotificationService.send_notification(
+                        recipient=participant,
+                        title=f"Results Released: {hackathon.title}",
+                        message=f"The organizer has officially released the results and leaderboard for '{hackathon.title}'. Check out the winners and final scores!",
+                        notification_type="HACKATHON_RESULTS",
+                        extra_data={
+                            "hackathon_id": hackathon.id,
+                            "hackathon_title": hackathon.title,
+                            "url": f"/dashboard/{hackathon.id}/leaderboard"
+                        }
+                    )
+            except Exception as e:
+                logger.error(f"Error sending results release notifications: {e}")
+
+        status_text = "released" if hackathon.results_released else "withdrawn"
+        return Response({
+            "message": f"Hackathon results have been successfully {status_text}.",
+            "hackathon": {
+                "id": hackathon.id,
+                "title": hackathon.title
+            },
+            "results_released": hackathon.results_released,
+            "results_released_at": hackathon.results_released_at,
+        }, status=status.HTTP_200_OK)
+
+    def get(self, request, hackathon_id):
+        try:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        is_organizer = (
+            (hackathon.organization and (
+                hackathon.organization.organizer == request.user or
+                request.user in hackathon.organization.moderators.all()
+            )) or request.user.is_admin
+        )
+
+        return Response({
+            "hackathon_id": hackathon.id,
+            "title": hackathon.title,
+            "results_released": hackathon.results_released,
+            "results_released_at": hackathon.results_released_at,
+            "can_release": is_organizer
+        }, status=status.HTTP_200_OK)
+
 
 
 
