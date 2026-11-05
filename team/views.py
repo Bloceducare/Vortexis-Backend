@@ -443,6 +443,19 @@ class TeamViewSet(ModelViewSet):
                 priority='normal',
                 send_email=True,
                 send_in_app=True,
+                template_name='emails/new_join_request.html',
+                context={
+                    'applicant_name': user_name,
+                    'applicant_email': user.email,
+                    'team_name': team.name,
+                    'hackathon_title': team.hackathon.title if team.hackathon else 'Hackathon',
+                    'organizer': team.organizer,
+                    'action_url': f"/teams/{team.id}",
+                    'action_text': 'Review & Respond',
+                    'user': team.organizer,
+                },
+                action_url=f"/teams/{team.id}",
+                action_text='Review & Respond',
                 data={'team_id': team.id, 'join_request_id': join_request.id, 'action': 'join_request_received'}
             )
         
