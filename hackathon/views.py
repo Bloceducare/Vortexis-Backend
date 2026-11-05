@@ -75,7 +75,7 @@ def build_full_hackathon_response(hackathon, request):
 
 
 class HackathonCreateView(GenericAPIView):
-    permission_classes = [IsAuthenticated, IsOrganizer]
+    permission_classes = [IsAuthenticated]
     serializer_class = CreateHackathonSerializer
 
     @swagger_auto_schema(
@@ -83,24 +83,129 @@ class HackathonCreateView(GenericAPIView):
         responses={
             201: HackathonSerializer,
             400: "Bad Request",
-            401: "Unauthorized"
+            401: "Unauthorized",
+            403: "Forbidden"
         },
         operation_description="Create a new hackathon (organizers with approved organizations only).",
         tags=['hackathons']
     )
     def post(self, request):
+        user = request.user
+        hackathon_title = request.data.get('title', 'Untitled Hackathon')
+
+        # Check organizer permissions and explain the exact reason if not allowed
+        if not user.is_organizer:
+            user_orgs = user.organizations.all()
+            if not user_orgs.exists():
+                reason = "Your account does not have organizer privileges. You must first create an organization and have it approved by an admin before you can host a hackathon."
+            elif all(not org.is_approved for org in user_orgs):
+                org_names = ", ".join([f"'{org.name}'" for org in user_orgs])
+                reason = f"Your organization ({org_names}) is currently pending admin approval. You will receive organizer access as soon as your organization is approved."
+            else:
+                reason = "Your account does not have organizer permissions enabled. Please contact an administrator."
+
+            NotificationService.send_notification(
+                user=user,
+                title="Hackathon Creation Failed - Permission Required",
+                message=reason,
+                category='account',
+                priority='high',
+                send_email=True,
+                send_in_app=True,
+                template_name="emails/hackathon_creation_failed.html",
+                context={
+                    "user": user,
+                    "hackathon_title": hackathon_title,
+                    "reasons": [reason],
+                    "action_url": "/organization",
+                    "action_text": "Check Organization Status"
+                }
+            )
+            return Response(
+                {"detail": reason, "error": reason},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         serializer = self.serializer_class(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        hackathon = serializer.save()
-        # Send notification to organizer
+        if not serializer.is_valid():
+            reasons = []
+            for field, errors in serializer.errors.items():
+                if isinstance(errors, list):
+                    for err in errors:
+                        clean_err = str(err)
+                        field_name = field.replace('_', ' ').capitalize()
+                        reasons.append(f"{field_name}: {clean_err}" if field != 'non_field_errors' else clean_err)
+                elif isinstance(errors, dict):
+                    for subfield, suberrs in errors.items():
+                        reasons.append(f"{subfield}: {suberrs}")
+                else:
+                    reasons.append(f"{field}: {errors}")
+
+            NotificationService.send_notification(
+                user=user,
+                title="Hackathon Creation Failed",
+                message="Your hackathon could not be created for the following reasons: " + "; ".join(reasons),
+                category='account',
+                priority='high',
+                send_email=True,
+                send_in_app=True,
+                template_name="emails/hackathon_creation_failed.html",
+                context={
+                    "user": user,
+                    "hackathon_title": hackathon_title,
+                    "reasons": reasons,
+                    "action_url": "/hackathons",
+                    "action_text": "Review & Try Again"
+                }
+            )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            hackathon = serializer.save()
+        except Exception as e:
+            error_reason = str(e)
+            NotificationService.send_notification(
+                user=user,
+                title="Hackathon Creation Failed",
+                message=f"An error occurred while saving your hackathon: {error_reason}",
+                category='account',
+                priority='high',
+                send_email=True,
+                send_in_app=True,
+                template_name="emails/hackathon_creation_failed.html",
+                context={
+                    "user": user,
+                    "hackathon_title": hackathon_title,
+                    "reasons": [error_reason],
+                    "action_url": "/hackathons",
+                    "action_text": "Try Again"
+                }
+            )
+            return Response(
+                {"error": "Failed to create hackathon.", "detail": error_reason},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Send success notification to organizer
         NotificationService.send_notification(
-            user=request.user,
+            user=user,
             title="Hackathon Created Successfully",
             message=f"Your hackathon '{hackathon.title}' has been created successfully.",
             category='account',
             priority='normal',
             send_email=True,
             send_in_app=True,
+            template_name="emails/CreatedHackathon.html",
+            context={
+                "user": user,
+                "hackathon": hackathon,
+                "hackathon_title": hackathon.title,
+                "venue": hackathon.venue,
+                "start_date": str(hackathon.start_date),
+                "end_date": str(hackathon.end_date),
+                "action_url": f"/hackathons/{hackathon.id}",
+                "action_text": "View Hackathon"
+            },
             data={
                 'hackathon_id': hackathon.id,
                 'hackathon_title': hackathon.title,
@@ -400,6 +505,15 @@ class HackathonRegistrationView(APIView):
             priority='normal',
             send_email=True,
             send_in_app=True,
+            template_name="emails/JoinedHackethon.html",
+            context={
+                'user': request.user,
+                'hackathon_title': hackathon.title,
+                'start_date': str(hackathon.start_date),
+                'end_date': str(hackathon.end_date),
+                'action_url': f'/hackathons/{hackathon.id}',
+                'action_text': 'View Hackathon'
+            },
             data={
                 'hackathon_id': hackathon.id,
                 'hackathon_title': hackathon.title,
@@ -963,6 +1077,14 @@ class JoinTeamView(GenericAPIView):
             priority='normal',
             send_email=True,
             send_in_app=True,
+            template_name="emails/Joinedteam.html",
+            context={
+                'user': request.user,
+                'team_name': team.name,
+                'hackathon_title': hackathon.title,
+                'action_url': f'/teams/{team.id}',
+                'action_text': 'View Team'
+            },
             data={
                 'team_id': team.id,
                 'team_name': team.name,

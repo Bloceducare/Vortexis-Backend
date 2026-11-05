@@ -89,15 +89,28 @@ class NotificationService:
         try:
             html_message = None
             # Use template if provided
-            if template_name and context:
-                html_message = render_to_string(template_name, context)
-                message = "please view this email in an HTML-compatible email client."
+            if template_name:
+                email_context = dict(context or {})
+                if 'user' not in email_context:
+                    email_context['user'] = user
+                if 'subject' not in email_context:
+                    email_context['subject'] = subject
+                if 'title' not in email_context:
+                    email_context['title'] = subject
+                if 'message' not in email_context:
+                    email_context['message'] = message
+                try:
+                    html_message = render_to_string(template_name, email_context)
+                except Exception as render_err:
+                    logger.error(f"Failed to render template {template_name}: {render_err}")
+                    html_message = None
 
+            plain_message = message or "Please view this email in an HTML-compatible email client."
             
             # Send email
             send_mail(
                 subject=subject,
-                message=message,
+                message=plain_message,
                 from_email=settings.EMAIL_HOST_USER,
                 recipient_list=[user.email],
                 fail_silently=False,

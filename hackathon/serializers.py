@@ -316,11 +316,16 @@ class CreateHackathonSerializer(HackathonSerializer):
         # Validate that the provided organization belongs to the user and is approved
         organization_id = data.get('organization_id')
         if not organization_id:
-            raise serializers.ValidationError("organization_id is required.")
+            raise serializers.ValidationError({"organization_id": "organization_id is required."})
 
-        user_org = user.organizations.filter(id=organization_id, is_approved=True).first()
-        if not user_org:
-            raise serializers.ValidationError("Invalid organization or organization not approved.")
+        from organization.models import Organization
+        org = Organization.objects.filter(id=organization_id).first()
+        if not org:
+            raise serializers.ValidationError({"organization": f"Organization with ID {organization_id} does not exist."})
+        elif org.organizer != user:
+            raise serializers.ValidationError({"organization": f"Organization '{org.name}' does not belong to your account."})
+        elif not org.is_approved:
+            raise serializers.ValidationError({"organization": f"Organization '{org.name}' is pending administrator approval. Hackathons can only be created once the organization is approved."})
 
         if data.get('start_date') and data.get('end_date') and data['start_date'] > data['end_date']:
             raise serializers.ValidationError("Start date must be before end date.")
