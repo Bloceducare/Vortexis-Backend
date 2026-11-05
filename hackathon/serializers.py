@@ -2,8 +2,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from django.utils import timezone
 from team.models import Team
-from .models import Hackathon, Theme, Submission, HackathonParticipant
-from admin_console.models import Review
+from .models import Hackathon, Theme, Submission, Review, HackathonParticipant
 from accounts.models import User
 
 
