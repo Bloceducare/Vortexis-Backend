@@ -218,9 +218,25 @@
                   {% endif %}
                   {% if github_url %}
                   <tr>
-                    <td class="detail-row" style="padding: 8px 0; font-size: 14px;">
+                    <td class="detail-row" style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
                       <span style="color: #64748B; font-weight: 500; display: inline-block; width: 120px;">Repository:</span>
                       <a href="{{ github_url }}" target="_blank" style="color: #6A4BFF; text-decoration: none;">{{ github_url }}</a>
+                    </td>
+                  </tr>
+                  {% endif %}
+                  {% if demo_video_url %}
+                  <tr>
+                    <td class="detail-row" style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
+                      <span style="color: #64748B; font-weight: 500; display: inline-block; width: 120px;">Demo Video:</span>
+                      <a href="{{ demo_video_url }}" target="_blank" style="color: #6A4BFF; text-decoration: none;">{{ demo_video_url }}</a>
+                    </td>
+                  </tr>
+                  {% endif %}
+                  {% if presentation_link %}
+                  <tr>
+                    <td class="detail-row" style="padding: 8px 0; font-size: 14px;">
+                      <span style="color: #64748B; font-weight: 500; display: inline-block; width: 120px;">Presentation:</span>
+                      <a href="{{ presentation_link }}" target="_blank" style="color: #6A4BFF; text-decoration: none;">{{ presentation_link }}</a>
                     </td>
                   </tr>
                   {% endif %}

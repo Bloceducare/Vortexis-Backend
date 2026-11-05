@@ -689,6 +689,8 @@ class SubmitProjectView(GenericAPIView):
                     'team_name': submission.team.name if submission.team else '',
                     'live_link': submission.project.live_link,
                     'github_url': submission.project.github_url,
+                    'demo_video_url': submission.project.demo_video_url,
+                    'presentation_link': submission.project.presentation_link,
                     'action_url': f'/submissions/{submission.id}',
                     'action_text': 'View Your Submission',
                 },
@@ -697,7 +699,11 @@ class SubmitProjectView(GenericAPIView):
                     'project_title': submission.project.title,
                     'submission_id': submission.id,
                     'hackathon_id': submission.hackathon.id,
-                    'hackathon_title': submission.hackathon.title
+                    'hackathon_title': submission.hackathon.title,
+                    'github_url': submission.project.github_url,
+                    'live_link': submission.project.live_link,
+                    'demo_video_url': submission.project.demo_video_url,
+                    'presentation_link': submission.project.presentation_link
                 },
                 action_url=f'/submissions/{submission.id}',
                 action_text='View Submission'
@@ -913,11 +919,7 @@ class SubmissionViewSet(ModelViewSet):
 
 class ReviewViewSet(ModelViewSet):
     serializer_class = ReviewSerializer
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAuthenticated(), IsJudge()]
-        return [IsAuthenticated()]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
@@ -1567,10 +1569,20 @@ class HackathonLeaderboardView(APIView):
                     'id': sub.project.id,
                     'title': sub.project.title,
                     'description': sub.project.description,
-                    'github_url': sub.project.github_url,
-                    'demo_video_url': sub.project.demo_video_url,
-                    'live_link': sub.project.live_link,
-                    'presentation_link': sub.project.presentation_link,
+                    'github_url': sub.project.github_url or '',
+                    'live_link': sub.project.live_link or '',
+                    'demo_video_url': sub.project.demo_video_url or '',
+                    'presentation_link': sub.project.presentation_link or '',
+                    'video_url': sub.project.demo_video_url or '',
+                    'presentation_url': sub.project.presentation_link or '',
+                    'deliverables': {
+                        'github_url': sub.project.github_url or '',
+                        'live_link': sub.project.live_link or '',
+                        'demo_video_url': sub.project.demo_video_url or '',
+                        'presentation_link': sub.project.presentation_link or '',
+                        'video_url': sub.project.demo_video_url or '',
+                        'presentation_url': sub.project.presentation_link or '',
+                    }
                 },
                 'team': {
                     'id': sub.team.id,
@@ -1682,8 +1694,20 @@ class HackathonLiveReviewsView(APIView):
                 'project': {
                     'id': r.submission.project.id,
                     'title': r.submission.project.title,
-                    'github_url': r.submission.project.github_url,
-                    'live_link': r.submission.project.live_link,
+                    'github_url': r.submission.project.github_url or '',
+                    'live_link': r.submission.project.live_link or '',
+                    'demo_video_url': r.submission.project.demo_video_url or '',
+                    'presentation_link': r.submission.project.presentation_link or '',
+                    'video_url': r.submission.project.demo_video_url or '',
+                    'presentation_url': r.submission.project.presentation_link or '',
+                    'deliverables': {
+                        'github_url': r.submission.project.github_url or '',
+                        'live_link': r.submission.project.live_link or '',
+                        'demo_video_url': r.submission.project.demo_video_url or '',
+                        'presentation_link': r.submission.project.presentation_link or '',
+                        'video_url': r.submission.project.demo_video_url or '',
+                        'presentation_url': r.submission.project.presentation_link or '',
+                    }
                 },
                 'team': {
                     'id': r.submission.team.id,

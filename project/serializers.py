@@ -10,8 +10,37 @@ class CreateProjectSerializer(serializers.ModelSerializer):
         model = Project
         fields = ['title', 'description', 'github_url', 'live_link', 'demo_video_url', 'presentation_link', 'team', 'hackathon']
         extra_kwargs = {
-            'hackathon': {'required': False}  # Optional when provided via URL
+            'hackathon': {'required': False},  # Optional when provided via URL
+            'live_link': {'required': False, 'allow_blank': True},
+            'demo_video_url': {'required': False, 'allow_blank': True},
+            'presentation_link': {'required': False, 'allow_blank': True},
         }
+
+    def to_internal_value(self, data):
+        data = data.copy() if hasattr(data, 'copy') else dict(data)
+        
+        # If deliverables is passed as a dict: {"deliverables": {"github_url": "...", "demo_video_url": "..."}}
+        deliverables = data.get('deliverables')
+        if isinstance(deliverables, dict):
+            for k, v in deliverables.items():
+                if k not in data or not data[k]:
+                    data[k] = v
+
+        # Alias mappings for common frontend variations
+        alias_map = {
+            'demo_video_url': ['video_url', 'video_link', 'demo_url', 'demo_video', 'youtube_url', 'video'],
+            'presentation_link': ['presentation_url', 'presentation', 'slides_url', 'slides_link', 'slides', 'pitch_deck', 'pitch_deck_url'],
+            'github_url': ['github', 'github_link', 'repo_url', 'repository_url', 'git_url'],
+            'live_link': ['live_url', 'demo_link', 'deployment_url', 'website_url', 'live_demo', 'app_url'],
+        }
+        for standard_field, aliases in alias_map.items():
+            if not data.get(standard_field):
+                for alias in aliases:
+                    if data.get(alias):
+                        data[standard_field] = data[alias]
+                        break
+
+        return super().to_internal_value(data)
     
     def validate(self, data):
         request = self.context.get('request')
@@ -88,11 +117,29 @@ class ProjectSerializer(serializers.ModelSerializer):
     team = serializers.SerializerMethodField()
     hackathon = serializers.SerializerMethodField()
     is_submitted = serializers.SerializerMethodField()
+    deliverables = serializers.SerializerMethodField()
+    video_url = serializers.CharField(source='demo_video_url', read_only=True)
+    presentation_url = serializers.CharField(source='presentation_link', read_only=True)
     
     class Meta:
         model = Project
-        fields = ['id', 'title', 'description', 'github_url', 'live_link', 'demo_video_url', 'presentation_link', 'team', 'hackathon', 'is_submitted', 'created_at', 'updated_at']
+        fields = [
+            'id', 'title', 'description',
+            'github_url', 'live_link', 'demo_video_url', 'presentation_link',
+            'video_url', 'presentation_url', 'deliverables',
+            'team', 'hackathon', 'is_submitted', 'created_at', 'updated_at'
+        ]
         read_only_fields = ['created_at', 'updated_at']
+    
+    def get_deliverables(self, obj):
+        return {
+            'github_url': obj.github_url or '',
+            'live_link': obj.live_link or '',
+            'demo_video_url': obj.demo_video_url or '',
+            'presentation_link': obj.presentation_link or '',
+            'video_url': obj.demo_video_url or '',
+            'presentation_url': obj.presentation_link or '',
+        }
     
     def get_team(self, obj):
         if obj.team:
@@ -128,10 +175,35 @@ class UpdateProjectSerializer(serializers.ModelSerializer):
             'title': {'required': False},
             'description': {'required': False},
             'github_url': {'required': False},
-            'live_link': {'required': False},
-            'demo_video_url': {'required': False},
-            'presentation_link': {'required': False},
+            'live_link': {'required': False, 'allow_blank': True},
+            'demo_video_url': {'required': False, 'allow_blank': True},
+            'presentation_link': {'required': False, 'allow_blank': True},
         }
+
+    def to_internal_value(self, data):
+        data = data.copy() if hasattr(data, 'copy') else dict(data)
+        
+        # If deliverables is passed as a dict: {"deliverables": {"github_url": "...", "demo_video_url": "..."}}
+        deliverables = data.get('deliverables')
+        if isinstance(deliverables, dict):
+            for k, v in deliverables.items():
+                if k not in data or not data[k]:
+                    data[k] = v
+
+        alias_map = {
+            'demo_video_url': ['video_url', 'video_link', 'demo_url', 'demo_video', 'youtube_url', 'video'],
+            'presentation_link': ['presentation_url', 'presentation', 'slides_url', 'slides_link', 'slides', 'pitch_deck', 'pitch_deck_url'],
+            'github_url': ['github', 'github_link', 'repo_url', 'repository_url', 'git_url'],
+            'live_link': ['live_url', 'demo_link', 'deployment_url', 'website_url', 'live_demo', 'app_url'],
+        }
+        for standard_field, aliases in alias_map.items():
+            if not data.get(standard_field):
+                for alias in aliases:
+                    if data.get(alias):
+                        data[standard_field] = data[alias]
+                        break
+
+        return super().to_internal_value(data)
     
     def validate(self, data):
         request = self.context.get('request')
