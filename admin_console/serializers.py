@@ -21,10 +21,15 @@ class UserSerializer(serializers.ModelSerializer):
         return list(obj.organizations.values_list('id', flat=True))
     
 class HackathonSerializer(serializers.ModelSerializer):
+    participants_count = serializers.SerializerMethodField()
+
     class Meta:
         model = Hackathon
         fields = '__all__'
         ref_name = 'AdminHackathonSerializer'
+
+    def get_participants_count(self, obj):
+        return obj.participants_count
 
 class SubmissionSerializer(serializers.ModelSerializer):
     class Meta:

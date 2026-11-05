@@ -290,11 +290,7 @@ class HackathonSerializer(serializers.ModelSerializer):
         ]
     
     def get_participants_count(self, obj):
-        from accounts.models import User
-        from django.db.models import Q
-        return User.objects.filter(
-            Q(hackathon_participations__hackathon=obj) | Q(teams__hackathon=obj)
-        ).distinct().count()
+        return obj.participants_count
     
     def get_teams_count(self, obj):
         return obj.teams.count()

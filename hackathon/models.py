@@ -35,6 +35,14 @@ class Hackathon(models.Model):
     def participants(self):
         return self.teams.all()
 
+    @property
+    def participants_count(self):
+        from accounts.models import User
+        from django.db.models import Q
+        return User.objects.filter(
+            Q(hackathon_participations__hackathon=self) | Q(teams__hackathon=self)
+        ).distinct().count()
+
 class Theme(models.Model):
     name = models.CharField(max_length=50, null=False, blank=False)
     description = models.TextField(null=True, blank=True)
