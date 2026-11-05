@@ -1,4 +1,6 @@
 import math
+import logging
+import threading
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.generics import GenericAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
@@ -30,6 +32,8 @@ from .serializers import (
     ReviewSerializer, InviteJudgeSerializer, IndividualRegistrationSerializer,
     HackathonParticipantSerializer, JoinTeamSerializer, AcceptJudgeInvitationSerializer
 )
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_hackathon_name(name):
@@ -943,15 +947,33 @@ class ReviewViewSet(ModelViewSet):
             )) or self.request.user.is_admin
         )
         
-        if is_organizer or self.request.user.is_judge:
+        is_judge = (
+            self.request.user.is_judge or
+            (hackathon and self.request.user in hackathon.judges.all()) or
+            self.request.user.judged_hackathons.filter(id=hackathon_id).exists()
+        )
+
+        if is_organizer or is_judge:
             # Organizers and judges can view all reviews for this hackathon
-            return base_queryset.filter(submission__hackathon_id=hackathon_id).order_by('-created_at')
+            queryset = base_queryset.filter(submission__hackathon_id=hackathon_id)
         else:
             # Participants can view reviews for their own team's submissions
-            return base_queryset.filter(
+            queryset = base_queryset.filter(
                 submission__hackathon_id=hackathon_id,
                 submission__team__members=self.request.user
-            ).order_by('-created_at')
+            )
+
+        # Support ?submission=<id> filter
+        submission_id = self.request.query_params.get('submission') or self.request.query_params.get('submission_id')
+        if submission_id:
+            queryset = queryset.filter(submission_id=submission_id)
+
+        # Support ?judge=<id> filter
+        judge_id = self.request.query_params.get('judge') or self.request.query_params.get('judge_id')
+        if judge_id:
+            queryset = queryset.filter(judge_id=judge_id)
+
+        return queryset.order_by('-created_at')
 
     def perform_create(self, serializer):
         serializer.save(judge=self.request.user)
@@ -971,37 +993,46 @@ class ReviewViewSet(ModelViewSet):
             submission.status = 'reviewed'
             submission.save()
         
-        # Send review notification to submission team
-        for member in review.submission.team.members.all():
-            NotificationService.send_notification(
-                user=member,
-                title="New Review for Your Submission",
-                message=f"Your submission '{review.submission.project.title}' for '{review.submission.hackathon.title}' has received a new review.",
-                category='account',
-                priority='normal',
-                send_email=True,
-                send_in_app=True,
-                template_name='emails/submission_review.html',
-                context={
-                    'user': member,
-                    'project_title': review.submission.project.title,
-                    'hackathon_title': review.submission.hackathon.title,
-                    'overall_score': review.overall_score,
-                    'review_comments': review.review or 'No comments provided',
-                    'action_url': f'/submissions/{review.submission.id}',
-                    'action_text': 'View Full Review & Scores',
-                },
-                data={
-                    'review_id': review.id,
-                    'submission_id': review.submission.id,
-                    'project_title': review.submission.project.title,
-                    'hackathon_title': review.submission.hackathon.title,
-                    'overall_score': review.overall_score,
-                    'review_comments': review.review or 'No comments provided'
-                },
-                action_url=f'/submissions/{review.submission.id}',
-                action_text='View Review'
-            )
+        # Send review notification to submission team asynchronously in a background thread to avoid blocking HTTP response
+        def send_review_notifications():
+            try:
+                for member in review.submission.team.members.all():
+                    try:
+                        NotificationService.send_notification(
+                            user=member,
+                            title="New Review for Your Submission",
+                            message=f"Your submission '{review.submission.project.title}' for '{review.submission.hackathon.title}' has received a new review.",
+                            category='account',
+                            priority='normal',
+                            send_email=True,
+                            send_in_app=True,
+                            template_name='emails/submission_review.html',
+                            context={
+                                'user': member,
+                                'project_title': review.submission.project.title,
+                                'hackathon_title': review.submission.hackathon.title,
+                                'overall_score': review.overall_score,
+                                'review_comments': review.review or 'No comments provided',
+                                'action_url': f'/submissions/{review.submission.id}',
+                                'action_text': 'View Full Review & Scores',
+                            },
+                            data={
+                                'review_id': review.id,
+                                'submission_id': review.submission.id,
+                                'project_title': review.submission.project.title,
+                                'hackathon_title': review.submission.hackathon.title,
+                                'overall_score': review.overall_score,
+                                'review_comments': review.review or 'No comments provided'
+                            },
+                            action_url=f'/submissions/{review.submission.id}',
+                            action_text='View Review'
+                        )
+                    except Exception as sub_e:
+                        logger.error(f"Error sending review notification to member {member.id}: {sub_e}")
+            except Exception as e:
+                logger.error(f"Error sending review notifications: {e}")
+
+        threading.Thread(target=send_review_notifications, daemon=True).start()
 
     def perform_update(self, serializer):
         serializer.save()
@@ -1823,30 +1854,42 @@ class HackathonReleaseResultsView(APIView):
             hackathon.results_released_at = timezone.now()
         hackathon.save()
 
-        # If results released, notify participants
+        # If results released, notify participants in a background thread
         if hackathon.results_released:
-            try:
-                from accounts.models import User
-                from django.db.models import Q
-                participants = User.objects.filter(
-                    Q(hackathon_participations__hackathon=hackathon) |
-                    Q(teams__hackathon=hackathon)
-                ).distinct()
+            import threading
+            def send_release_notifications():
+                try:
+                    from accounts.models import User
+                    from django.db.models import Q
+                    participants = User.objects.filter(
+                        Q(hackathon_participations__hackathon=hackathon) |
+                        Q(teams__hackathon=hackathon)
+                    ).distinct()
 
-                for participant in participants:
-                    NotificationService.send_notification(
-                        recipient=participant,
-                        title=f"Results Released: {hackathon.title}",
-                        message=f"The organizer has officially released the results and leaderboard for '{hackathon.title}'. Check out the winners and final scores!",
-                        notification_type="HACKATHON_RESULTS",
-                        extra_data={
-                            "hackathon_id": hackathon.id,
-                            "hackathon_title": hackathon.title,
-                            "url": f"/dashboard/{hackathon.id}/leaderboard"
-                        }
-                    )
-            except Exception as e:
-                logger.error(f"Error sending results release notifications: {e}")
+                    for participant in participants:
+                        try:
+                            NotificationService.send_notification(
+                                user=participant,
+                                title=f"Results Released: {hackathon.title}",
+                                message=f"The organizer has officially released the results and leaderboard for '{hackathon.title}'. Check out the winners and final scores!",
+                                category='system',
+                                priority='high',
+                                send_email=True,
+                                send_in_app=True,
+                                data={
+                                    "hackathon_id": hackathon.id,
+                                    "hackathon_title": hackathon.title,
+                                    "url": f"/dashboard/{hackathon.id}/leaderboard"
+                                },
+                                action_url=f"/dashboard/{hackathon.id}/leaderboard",
+                                action_text="View Leaderboard"
+                            )
+                        except Exception as ne:
+                            logger.error(f"Error sending notification to user {participant.id}: {ne}")
+                except Exception as e:
+                    logger.error(f"Error in release notifications thread: {e}")
+
+            threading.Thread(target=send_release_notifications, daemon=True).start()
 
         status_text = "released" if hackathon.results_released else "withdrawn"
         return Response({
