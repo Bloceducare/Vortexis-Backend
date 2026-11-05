@@ -94,12 +94,18 @@ class SubmissionSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at', 'hackathon', 'project', 'team', 'reviews']
 
     def get_project(self, obj):
+        if not obj.project:
+            return None
         return {
             'id': obj.project.id,
             'title': obj.project.title,
             'description': obj.project.description,
             'github_url': obj.project.github_url,
-            'live_link': obj.project.live_link
+            'demo_video_url': obj.project.demo_video_url,
+            'live_link': obj.project.live_link,
+            'presentation_link': obj.project.presentation_link,
+            'created_at': obj.project.created_at,
+            'updated_at': obj.project.updated_at
         }
 
     def get_team(self, obj):
