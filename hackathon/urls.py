@@ -8,7 +8,8 @@ from .views import (
     JoinTeamView, HackathonIndividualParticipantsView, AvailableTeamsView,
     UserRegisteredHackathonsView, JudgeAllReviewsView, HackathonProjectsView,
     SubmissionProjectDetailView, OrganizationHackathonsView, HackathonStatsView,
-    HackathonLeaderboardView, HackathonLiveReviewsView, HackathonApprovedSubmissionsView
+    HackathonLeaderboardView, HackathonLiveReviewsView, HackathonApprovedSubmissionsView,
+    HackathonReleaseResultsView
 )
 
 router = DefaultRouter()
@@ -39,6 +40,7 @@ urlpatterns = [
     path('<int:hackathon_id>/leaderboard/', HackathonLeaderboardView.as_view(), name='hackathon_leaderboard'),
     path('<int:hackathon_id>/live-reviews/', HackathonLiveReviewsView.as_view(), name='hackathon_live_reviews'),
     path('<int:hackathon_id>/approved-submissions/', HackathonApprovedSubmissionsView.as_view(), name='hackathon_approved_submissions'),
+    path('<int:hackathon_id>/release-results/', HackathonReleaseResultsView.as_view(), name='hackathon_release_results'),
     path('submissions/<int:submission_id>/project/', SubmissionProjectDetailView.as_view(), name='submission_project_detail'),
     path('skills/', AllSkillsView.as_view(), name='all_skills'),
     path('<int:hackathon_id>/', include(router.urls)),

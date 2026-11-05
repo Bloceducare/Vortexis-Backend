@@ -27,6 +27,8 @@ class Hackathon(models.Model):
     rules = models.TextField(blank=True, help_text="Enter hackathon rules (one per line or as formatted text)")
     prizes = models.TextField(blank=True, help_text="Enter prize information (one per line or as formatted text)")
     evaluation_criteria = models.TextField(blank=True, help_text="Evaluation criteria for judges (only visible to judges and organizers)")
+    results_released = models.BooleanField(default=False, help_text="Whether hackathon results and leaderboard are released to participants and the public")
+    results_released_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when results were officially released")
 
     def __str__(self):
         return self.title

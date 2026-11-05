@@ -1508,6 +1508,26 @@ class HackathonLeaderboardView(APIView):
         except Hackathon.DoesNotExist:
             return Response({"error": "Hackathon not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        is_organizer = (
+            (hackathon.organization and (
+                hackathon.organization.organizer == request.user or
+                request.user in hackathon.organization.moderators.all()
+            )) or request.user.is_admin
+        )
+
+        # Check if results have been released by the organizer
+        if not hackathon.results_released and not is_organizer:
+            return Response({
+                "hackathon": {
+                    "id": hackathon.id,
+                    "title": hackathon.title
+                },
+                "results_released": False,
+                "message": "Results for this hackathon have not been released by the organizer yet. Stay tuned!",
+                "total_submissions": 0,
+                "leaderboard": []
+            }, status=status.HTTP_200_OK)
+
         # Optional filter: ?approved_only=true
         approved_only = request.query_params.get('approved_only', 'false').lower() in ['true', '1']
 
@@ -1599,14 +1619,25 @@ class HackathonLeaderboardView(APIView):
         for idx, item in enumerate(leaderboard_data, 1):
             item['rank'] = idx
 
-        return Response({
+        response_data = {
             "hackathon": {
                 "id": hackathon.id,
                 "title": hackathon.title
             },
+            "results_released": hackathon.results_released,
+            "results_released_at": hackathon.results_released_at,
+            "is_organizer_preview": (not hackathon.results_released and is_organizer),
             "total_submissions": len(leaderboard_data),
             "leaderboard": leaderboard_data
-        }, status=status.HTTP_200_OK)
+        }
+
+        if not hackathon.results_released and is_organizer:
+            response_data["organizer_notice"] = (
+                "These results are currently in preview mode and NOT released to participants. "
+                "Use POST /release-results/ to officially release them."
+            )
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
 
 class HackathonLiveReviewsView(APIView):
@@ -1626,11 +1657,23 @@ class HackathonLiveReviewsView(APIView):
         except Hackathon.DoesNotExist:
             return Response({"error": "Hackathon not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        is_organizer = (
+            (hackathon.organization and (
+                hackathon.organization.organizer == request.user or
+                request.user in hackathon.organization.moderators.all()
+            )) or request.user.is_admin
+        )
+        is_judge = request.user in hackathon.judges.all()
+
         reviews = Review.objects.filter(
             submission__hackathon=hackathon
         ).select_related(
             'submission', 'submission__project', 'submission__team', 'judge'
         ).order_by('-created_at')
+
+        # If results have not been released, non-organizers and non-judges only see their own team's reviews
+        if not hackathon.results_released and not (is_organizer or is_judge):
+            reviews = reviews.filter(submission__team__members=request.user)
 
         data = [
             {
@@ -1669,6 +1712,7 @@ class HackathonLiveReviewsView(APIView):
                 "id": hackathon.id,
                 "title": hackathon.title
             },
+            "results_released": hackathon.results_released,
             "total_reviews": len(data),
             "reviews": data
         }, status=status.HTTP_200_OK)
@@ -1708,6 +1752,110 @@ class HackathonApprovedSubmissionsView(APIView):
             "count": submissions.count(),
             "submissions": serializer.data
         }, status=status.HTTP_200_OK)
+
+
+class HackathonReleaseResultsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'release': openapi.Schema(type=openapi.TYPE_BOOLEAN, description='True to release/publish results, False to withdraw/hide', default=True),
+            }
+        ),
+        responses={
+            200: "Results release status updated successfully",
+            403: "Only hackathon organizer can release results",
+            404: "Hackathon not found"
+        },
+        operation_description="Organizer endpoint to release or hide the official hackathon results and leaderboard.",
+        tags=['hackathons']
+    )
+    def post(self, request, hackathon_id):
+        try:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        is_organizer = (
+            (hackathon.organization and (
+                hackathon.organization.organizer == request.user or
+                request.user in hackathon.organization.moderators.all()
+            )) or request.user.is_admin
+        )
+        if not is_organizer:
+            return Response(
+                {"error": "Only the hackathon organizer or moderators can release results."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        release = request.data.get('release', True)
+        if isinstance(release, str):
+            release = release.lower() in ['true', '1']
+
+        hackathon.results_released = bool(release)
+        if hackathon.results_released:
+            hackathon.results_released_at = timezone.now()
+        hackathon.save()
+
+        # If results released, notify participants
+        if hackathon.results_released:
+            try:
+                from accounts.models import User
+                from django.db.models import Q
+                participants = User.objects.filter(
+                    Q(hackathon_participations__hackathon=hackathon) |
+                    Q(teams__hackathon=hackathon)
+                ).distinct()
+
+                for participant in participants:
+                    NotificationService.send_notification(
+                        recipient=participant,
+                        title=f"Results Released: {hackathon.title}",
+                        message=f"The organizer has officially released the results and leaderboard for '{hackathon.title}'. Check out the winners and final scores!",
+                        notification_type="HACKATHON_RESULTS",
+                        extra_data={
+                            "hackathon_id": hackathon.id,
+                            "hackathon_title": hackathon.title,
+                            "url": f"/dashboard/{hackathon.id}/leaderboard"
+                        }
+                    )
+            except Exception as e:
+                logger.error(f"Error sending results release notifications: {e}")
+
+        status_text = "released" if hackathon.results_released else "withdrawn"
+        return Response({
+            "message": f"Hackathon results have been successfully {status_text}.",
+            "hackathon": {
+                "id": hackathon.id,
+                "title": hackathon.title
+            },
+            "results_released": hackathon.results_released,
+            "results_released_at": hackathon.results_released_at,
+        }, status=status.HTTP_200_OK)
+
+    def get(self, request, hackathon_id):
+        try:
+            hackathon = Hackathon.objects.get(id=hackathon_id)
+        except Hackathon.DoesNotExist:
+            return Response({"error": "Hackathon not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        is_organizer = (
+            (hackathon.organization and (
+                hackathon.organization.organizer == request.user or
+                request.user in hackathon.organization.moderators.all()
+            )) or request.user.is_admin
+        )
+
+        return Response({
+            "hackathon_id": hackathon.id,
+            "title": hackathon.title,
+            "results_released": hackathon.results_released,
+            "results_released_at": hackathon.results_released_at,
+            "can_release": is_organizer
+        }, status=status.HTTP_200_OK)
+
 
 
 
