@@ -236,6 +236,7 @@ class HackathonSerializer(serializers.ModelSerializer):
     judges = serializers.SerializerMethodField()
     participants_count = serializers.SerializerMethodField()
     submissions_count = serializers.SerializerMethodField()
+    teams_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Hackathon
@@ -289,7 +290,14 @@ class HackathonSerializer(serializers.ModelSerializer):
         ]
     
     def get_participants_count(self, obj):
-        return obj.participants.count()
+        from accounts.models import User
+        from django.db.models import Q
+        return User.objects.filter(
+            Q(hackathon_participations__hackathon=obj) | Q(teams__hackathon=obj)
+        ).distinct().count()
+    
+    def get_teams_count(self, obj):
+        return obj.teams.count()
     
     def get_submissions_count(self, obj):
         return obj.submissions.count()
