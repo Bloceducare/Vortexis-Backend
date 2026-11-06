@@ -196,3 +196,96 @@ class GithubSocialAuthTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(User.objects.filter(email='dupe@example.com').count(), 1)
         self.assertEqual(response.json()['id'], existing.id)
+
+    def _github_login(self, mock_token, mock_user, **github_user):
+        mock_token.return_value = 'gho_token'
+        mock_user.return_value = github_user
+        return self._post()
+
+    @patch('social_auth.serializer.Github.get_user_details')
+    @patch('social_auth.serializer.Github.get_token')
+    def test_existing_user_keeps_their_registered_name(self, mock_token, mock_user):
+        """GitHub's display name must not overwrite the name the user registered with."""
+        existing = User.objects.create_user(
+            email='ada@example.com', username='ada', first_name='Ada', last_name='Obi',
+            password='pw12345',
+        )
+
+        response = self._github_login(
+            mock_token, mock_user, login='ada-gh', name='Cryptic Dev', email='ada@example.com',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        existing.refresh_from_db()
+        self.assertEqual((existing.first_name, existing.last_name), ('Ada', 'Obi'))
+
+    @patch('social_auth.serializer.Github.get_user_details')
+    @patch('social_auth.serializer.Github.get_token')
+    def test_missing_github_name_does_not_replace_name_with_login(self, mock_token, mock_user):
+        """With no GitHub display name the serializer falls back to the login;
+        that fallback must never clobber a real first name."""
+        existing = User.objects.create_user(
+            email='ada@example.com', username='ada', first_name='Ada', last_name='Obi',
+            password='pw12345',
+        )
+
+        response = self._github_login(
+            mock_token, mock_user, login='adaobi123', name=None, email='ada@example.com',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        existing.refresh_from_db()
+        self.assertEqual((existing.first_name, existing.last_name), ('Ada', 'Obi'))
+
+    @patch('social_auth.serializer.Github.get_user_details')
+    @patch('social_auth.serializer.Github.get_token')
+    def test_existing_user_missing_names_are_filled_from_github(self, mock_token, mock_user):
+        existing = User.objects.create_user(
+            email='ada@example.com', username='ada', first_name='Ada', last_name='Obi',
+            password='pw12345',
+        )
+        User.objects.filter(pk=existing.pk).update(first_name='', last_name='')
+
+        response = self._github_login(
+            mock_token, mock_user, login='ada-gh', name='Mona Cat', email='ada@example.com',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        existing.refresh_from_db()
+        self.assertEqual((existing.first_name, existing.last_name), ('Mona', 'Cat'))
+
+    @patch('social_auth.serializer.Github.get_user_details')
+    @patch('social_auth.serializer.Github.get_token')
+    def test_email_match_is_case_insensitive(self, mock_token, mock_user):
+        """An account stored as 'Ada@Example.com' must match GitHub's 'ada@example.com'."""
+        existing = User.objects.create_user(
+            email='Ada@Example.com', username='ada', first_name='Ada', last_name='Obi',
+            password='pw12345',
+        )
+
+        response = self._github_login(
+            mock_token, mock_user, login='ada-gh', name='Ada Obi', email='ada@example.com',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()['id'], existing.id)
+        self.assertEqual(User.objects.count(), 1)
+
+    @patch('social_auth.serializer.Github.get_user_details')
+    @patch('social_auth.serializer.Github.get_token')
+    def test_linking_marks_verified_and_keeps_original_provider(self, mock_token, mock_user):
+        existing = User.objects.create_user(
+            email='ada@example.com', username='ada', first_name='Ada', last_name='Obi',
+            password='pw12345',
+        )
+        self.assertFalse(existing.is_verified)
+
+        response = self._github_login(
+            mock_token, mock_user, login='ada-gh', name='Ada Obi', email='ada@example.com',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        existing.refresh_from_db()
+        self.assertTrue(existing.is_verified)
+        self.assertEqual(existing.auth_provider, 'email')
+        self.assertEqual(existing.username, 'ada')
