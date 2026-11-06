@@ -24,16 +24,20 @@ class Google:
         
 
 def register_social_user(provider, username, email, first_name, last_name):
-    user = User.objects.filter(email=email).first()
+    # Email addresses are case-insensitive in practice, but the unique index on
+    # User.email is case-sensitive. Match case-insensitively so "Ada@x.com" and
+    # "ada@x.com" resolve to the same account instead of creating a duplicate.
+    user = User.objects.filter(email__iexact=(email or '').strip()).order_by('id').first()
     if user:
-        # User exists - link the social account to existing account
-        # Update user info if needed (but preserve original username if it's different)
-        # Update first_name and last_name if they're empty or if social provider has better data
-        if not user.first_name or (first_name and first_name.strip()):
-            user.first_name = first_name or user.first_name
-        if not user.last_name or (last_name and last_name.strip()):
-            user.last_name = last_name or user.last_name
-        
+        # User exists - link the social account to existing account.
+        # Never overwrite details the user already has: a social provider's
+        # display name (or, failing that, its login) must not replace the name
+        # they registered with. Only fill in what is missing.
+        if not user.first_name and first_name and first_name.strip():
+            user.first_name = first_name
+        if not user.last_name and last_name and last_name.strip():
+            user.last_name = last_name
+
         # Mark user as verified if they weren't before (social auth is inherently verified)
         if not user.is_verified:
             user.is_verified = True
