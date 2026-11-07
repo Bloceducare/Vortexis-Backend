@@ -25,9 +25,15 @@ class Google:
 
 def register_social_user(provider, username, email, first_name, last_name):
     # Email addresses are case-insensitive in practice, but the unique index on
-    # User.email is case-sensitive. Match case-insensitively so "Ada@x.com" and
-    # "ada@x.com" resolve to the same account instead of creating a duplicate.
-    user = User.objects.filter(email__iexact=(email or '').strip()).order_by('id').first()
+    # User.email is case-sensitive. Prefer an exact match (so accounts that
+    # already differ only by case keep resolving exactly as before), then fall
+    # back to a case-insensitive match so "Ada@x.com" and "ada@x.com" resolve to
+    # the same account instead of creating a duplicate.
+    email = (email or '').strip()
+    user = (
+        User.objects.filter(email=email).first()
+        or User.objects.filter(email__iexact=email).order_by('id').first()
+    )
     if user:
         # User exists - link the social account to existing account.
         # Never overwrite details the user already has: a social provider's

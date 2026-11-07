@@ -289,3 +289,27 @@ class GithubSocialAuthTests(APITestCase):
         self.assertTrue(existing.is_verified)
         self.assertEqual(existing.auth_provider, 'email')
         self.assertEqual(existing.username, 'ada')
+
+    @patch('social_auth.serializer.Github.get_user_details')
+    @patch('social_auth.serializer.Github.get_token')
+    def test_exact_email_match_wins_over_case_variant(self, mock_token, mock_user):
+        """Registration's duplicate check is case-sensitive, so accounts that differ
+        only by case can already exist. An exact match must keep resolving to the
+        same account it always did, not to the oldest case-insensitive match."""
+        older = User.objects.create_user(
+            email='ada@example.com', username='ada_old', first_name='Ada', last_name='Old',
+            password='pw12345',
+        )
+        exact = User.objects.create_user(
+            email='Ada@example.com', username='ada_new', first_name='Ada', last_name='New',
+            password='pw12345',
+        )
+        self.assertLess(older.id, exact.id)
+
+        response = self._github_login(
+            mock_token, mock_user, login='ada-gh', name='Ada', email='Ada@example.com',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()['id'], exact.id)
+        self.assertEqual(User.objects.count(), 2)
