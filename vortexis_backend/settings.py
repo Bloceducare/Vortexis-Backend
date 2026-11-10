@@ -240,7 +240,18 @@ SWAGGER_SETTINGS = {
 }
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
 
-# Redis Configuration
+# Cache Configuration - Django built-in database cache
+# (works across Gunicorn workers; run: python manage.py createcachetable)
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'vortexis_cache_table',
+        'TIMEOUT': 300,  # Default timeout in seconds (5 minutes)
+        'KEY_PREFIX': 'vortexis',
+    }
+}
+
+# Redis Configuration (used by Channels only)
 REDIS_HOST = config('REDIS_HOST', default='127.0.0.1')
 REDIS_PORT = config('REDIS_PORT', default='6379')
 REDIS_PASSWORD = config('REDIS_PASSWORD', default='')
@@ -249,40 +260,9 @@ REDIS_PASSWORD = config('REDIS_PASSWORD', default='')
 REDIS_PASSWORD = REDIS_PASSWORD.strip() if REDIS_PASSWORD else ''
 REDIS_PASSWORD_SET = bool(REDIS_PASSWORD)
 
-# Build Redis URL (without password in URL - we'll use OPTIONS for auth)
 def build_redis_url(host, port, db=0):
     """Build Redis URL without password (password handled in OPTIONS)"""
     return f"redis://{host}:{port}/{db}"
-
-# Cache Configuration - Redis (using database 1)
-REDIS_CACHE_URL = build_redis_url(REDIS_HOST, REDIS_PORT, db=1)
-
-# Build cache options
-CACHE_OPTIONS = {
-    'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-    'SOCKET_CONNECT_TIMEOUT': 5,
-    'SOCKET_TIMEOUT': 5,
-    'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
-    # Avoid 500s when Redis is slow/unreachable (e.g. throttle cache); operations degrade gracefully.
-    'IGNORE_EXCEPTIONS': True, 
-}
-
-# Only add password if it's actually set and not empty
-if REDIS_PASSWORD_SET:
-    CACHE_OPTIONS['PASSWORD'] = REDIS_PASSWORD
-    print(f"[REDIS_CONFIG] Password authentication enabled")
-else:
-    print(f"[REDIS_CONFIG] No password authentication (Redis server doesn't require it)")
-
-CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': REDIS_CACHE_URL,
-        'OPTIONS': CACHE_OPTIONS,
-        'KEY_PREFIX': 'vortexis',
-        'TIMEOUT': 300,  # Default timeout in seconds (5 minutes)
-    }
-}
 
 # Channels - Redis (using database 0)
 REDIS_CHANNELS_URL = build_redis_url(REDIS_HOST, REDIS_PORT, db=0)
@@ -291,7 +271,7 @@ CHANNEL_LAYERS_CONFIG = {
 }
 # Add password to channels config if set
 if REDIS_PASSWORD_SET:
-  CHANNEL_LAYERS_CONFIG["password"] = REDIS_PASSWORD
+    CHANNEL_LAYERS_CONFIG["password"] = REDIS_PASSWORD
 
 CHANNEL_LAYERS = {
     'default': {
