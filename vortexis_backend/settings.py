@@ -216,6 +216,10 @@ CLOUDINARY_STORAGE = {
 # Media files (Uploaded files)
 USE_CLOUDINARY = config('USE_CLOUDINARY', default=False, cast=bool)
 
+# Allow up to 10MB image uploads (frontend also enforces 10MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+
 if USE_CLOUDINARY and CLOUDINARY_STORAGE['CLOUD_NAME']:
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
     MEDIA_URL = f"https://res.cloudinary.com/{CLOUDINARY_STORAGE['CLOUD_NAME']}/"
