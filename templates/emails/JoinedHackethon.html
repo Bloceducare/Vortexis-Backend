@@ -62,7 +62,7 @@
       margin: 20px 0;
     }
     .cta-button {
-      background-color: #2563eb;
+      background-color: #605DEC;
       color: #ffffff !important;
       text-decoration: none;
       font-size: 14px;
@@ -100,8 +100,8 @@
           <span class="badge">Registration Confirmed</span>
           <h1 style="color: #0f172a; font-size: 22px; margin-top: 0;">You're registered for {{ hackathon_title }}!</h1>
           <p style="color: #475569; font-size: 15px; line-height: 1.6;">
-            Hi {{ user.first_name|default:user.username }},<br>
-            Your registration for <strong>{{ hackathon_title }}</strong> has been confirmed. You are now ready to form or join a team and build your project.
+            Hi {% if user.first_name %}{{ user.first_name }}{% elif user.username %}{{ user.username }}{% elif user %}{{ user }}{% else %}Builder{% endif %},<br>
+            Your registration for <strong>{{ hackathon_title|default:'the hackathon' }}</strong> has been confirmed. You are now ready to form or join a team and build your project.
           </p>
           <div class="card">
             <p style="margin: 6px 0;"><strong>Hackathon:</strong> {{ hackathon_title }}</p>

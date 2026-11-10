@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Results Released: {{ hackathon_title|default:"Hackathon" }}</title>
+  <style type="text/css">
+    body, table, td, a {
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+    table, td {
+      mso-table-lspace: 0pt;
+      mso-table-rspace: 0pt;
+    }
+    img {
+      -ms-interpolation-mode: bicubic;
+      border: 0;
+      height: auto;
+      line-height: 100%;
+      outline: none;
+      text-decoration: none;
+    }
+    body {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+      background-color: #F8FAFC;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #334155;
+    }
+    .wrapper {
+      width: 100% !important;
+      background-color: #F8FAFC;
+      padding: 40px 0;
+    }
+    .main-table {
+      background-color: #ffffff;
+      margin: 0 auto;
+      max-width: 600px;
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #E2E8F0;
+      border-collapse: separate;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+    }
+    .header {
+      background-color: #ffffff !important;
+      padding: 32px 24px 24px 24px;
+      text-align: center;
+      border-bottom: 1px solid #F1F5F9;
+    }
+    .content {
+      padding: 40px 36px;
+      background-color: #ffffff;
+    }
+    .badge-results {
+      display: inline-block;
+      background-color: #FEF3C7;
+      color: #B45309;
+      border: 1px solid #FDE68A;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    .headline {
+      color: #0F172A;
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.3;
+      margin: 0 0 14px 0;
+    }
+    .paragraph {
+      color: #475569;
+      font-size: 15px;
+      line-height: 1.65;
+      margin: 0 0 20px 0;
+    }
+    .details-card {
+      background-color: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin: 24px 0 28px 0;
+    }
+    .detail-row {
+      padding: 9px 0;
+      font-size: 14px;
+      border-bottom: 1px solid #EEF2F6;
+    }
+    .detail-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .btn-action {
+      background-color: #605DEC;
+      color: #ffffff !important;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 14px 36px;
+      border-radius: 8px;
+      display: inline-block;
+      box-shadow: 0 4px 14px rgba(96, 93, 236, 0.25);
+    }
+    .tips-box {
+      background-color: #F0FDF4;
+      border-left: 4px solid #10B981;
+      padding: 16px 20px;
+      border-radius: 6px;
+      margin: 26px 0 0 0;
+    }
+    .footer {
+      background-color: #ffffff;
+      border-top: 1px solid #F1F5F9;
+      padding: 24px 30px;
+      text-align: center;
+      font-size: 12px;
+      color: #94A3B8;
+      line-height: 1.6;
+    }
+    .footer a {
+      color: #605DEC;
+      text-decoration: none;
+    }
+    @media only screen and (max-width: 600px) {
+      .content {
+        padding: 30px 20px !important;
+      }
+      .details-card {
+        padding: 16px !important;
+      }
+      .headline {
+        font-size: 20px !important;
+      }
+    }
+  </style>
+</head>
+<body bgcolor="#F8FAFC">
+  <div class="wrapper" style="background-color: #F8FAFC; padding: 40px 0;">
+    <table class="main-table" align="center" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background-color: #ffffff; margin: 0 auto; border-radius: 12px; overflow: hidden; border: 1px solid #E2E8F0; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);">
+      <!-- Header with Official Vortexis Color Logo -->
+      <tr>
+        <td class="header" align="center" bgcolor="#FFFFFF" style="background-color: #FFFFFF !important; padding: 32px 24px 24px 24px; text-align: center; border-bottom: 1px solid #F1F5F9;">
+          <a href="{{ site_url|default:'https://vortexis.io' }}" target="_blank" style="text-decoration: none; display: inline-block;">
+            <img src="{{ logo_url|default:'https://res.cloudinary.com/dvuwy2tny/image/upload/v1793870772/vortexis_logo_color.png' }}" 
+                 alt="Vortexis" 
+                 width="160" 
+                 height="37" 
+                 border="0" 
+                 style="display: block; margin: 0 auto; width: 160px; max-width: 160px; height: 37px; border: 0; outline: none; text-decoration: none;" />
+          </a>
+        </td>
+      </tr>
+
+      <!-- Main Content -->
+      <tr>
+        <td class="content" bgcolor="#FFFFFF" style="padding: 40px 36px; text-align: left; background-color: #ffffff;">
+          <!-- Badge -->
+          <span class="badge-results" style="display: inline-block; background-color: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; padding: 6px 14px; border-radius: 9999px; text-transform: uppercase; margin-bottom: 18px;">
+            &#127942; Results Are Live
+          </span>
+
+          <h1 class="headline" style="color: #0F172A; font-size: 24px; font-weight: 800; line-height: 1.3; margin: 0 0 14px 0;">
+            Final Results &amp; Leaderboard Released!
+          </h1>
+
+          <p class="paragraph" style="color: #475569; font-size: 15px; line-height: 1.65; margin: 0 0 20px 0;">
+            Hi <strong>{% if user and user.first_name %}{{ user.first_name }}{% elif user and user.username %}{{ user.username }}{% elif recipient_name %}{{ recipient_name }}{% else %}Participant{% endif %}</strong>,<br>
+            The organizers for <strong>&ldquo;{{ hackathon_title|default:'the hackathon' }}&rdquo;</strong> have officially concluded the judging process and published the final standings, winner announcements, and official leaderboard!
+          </p>
+
+          <!-- Overview Card -->
+          <div class="details-card" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 18px 22px; margin: 24px 0 28px 0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td class="detail-row" style="padding: 9px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
+                  <span style="color: #64748B; font-weight: 500; display: inline-block; width: 120px;">Hackathon:</span>
+                  <strong style="color: #0F172A;">{{ hackathon_title|default:'Hackathon' }}</strong>
+                </td>
+              </tr>
+              <tr>
+                <td class="detail-row" style="padding: 9px 0; font-size: 14px;">
+                  <span style="color: #64748B; font-weight: 500; display: inline-block; width: 120px;">Status:</span>
+                  <span style="color: #059669; font-weight: 700; background-color: #ECFDF5; padding: 3px 8px; border-radius: 4px; font-size: 12px;">&#10003; Results Published</span>
+                </td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- CTA Button -->
+          <div style="text-align: center; margin: 32px 0 24px 0;">
+            <a href="{{ action_url|default:'https://vortexis.io' }}" class="btn-action" style="display: inline-block; background-color: #605DEC; color: #ffffff !important; font-size: 15px; font-weight: 700; text-decoration: none; padding: 14px 36px; border-radius: 8px; box-shadow: 0 4px 14px rgba(96, 93, 236, 0.25);">
+              {{ action_text|default:'View Final Leaderboard' }} &rarr;
+            </a>
+          </div>
+
+          <!-- Congratulatory message -->
+          <div class="tips-box" style="background-color: #F0FDF4; border-left: 4px solid #10B981; padding: 16px 20px; border-radius: 6px; margin: 26px 0 0 0;">
+            <strong style="color: #065F46; font-size: 14px; display: block; margin-bottom: 6px;">Thank you for building!</strong>
+            <span style="color: #047857; font-size: 13px; line-height: 1.55; display: block;">
+              Thank you for dedicating your time, talent, and creativity to this competition. Be sure to check your project page for detailed feedback and certificate badges.
+            </span>
+          </div>
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td class="footer" style="background-color: #ffffff; border-top: 1px solid #F1F5F9; padding: 24px 30px; text-align: center; font-size: 12px; color: #94A3B8; line-height: 1.6;">
+          <p style="margin: 0 0 8px 0; font-weight: 600; color: #64748B;">Vortexis Hackathon Platform</p>
+          <p style="margin: 0 0 12px 0;">
+            <a href="{{ site_url|default:'https://vortexis.io' }}/hackathons" style="color: #605DEC; text-decoration: none; margin: 0 8px;">Explore More Hackathons</a> &bull;
+            <a href="{{ site_url|default:'https://vortexis.io' }}/help" style="color: #605DEC; text-decoration: none; margin: 0 8px;">Help Center</a>
+          </p>
+          <p style="margin: 0; font-size: 11px; color: #94A3B8;">
+            &copy; Vortexis. All rights reserved.<br>
+            You received this notification because of your participation in {{ hackathon_title|default:'a hackathon' }} on Vortexis.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </div>
+</body>
+</html>
+

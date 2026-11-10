@@ -62,7 +62,7 @@
       margin: 20px 0;
     }
     .cta-button {
-      background-color: #059669;
+      background-color: #605DEC;
       color: #ffffff !important;
       text-decoration: none;
       font-size: 14px;
@@ -100,8 +100,8 @@
           <span class="badge">Created Successfully</span>
           <h1 style="color: #0f172a; font-size: 22px; margin-top: 0;">Your Hackathon is Live!</h1>
           <p style="color: #475569; font-size: 15px; line-height: 1.6;">
-            Hi {{ user.first_name|default:user.username }},<br>
-            Congratulations! Your hackathon <strong>"{{ hackathon_title }}"</strong> has been created successfully.
+            Hi {% if user.first_name %}{{ user.first_name }}{% elif user.username %}{{ user.username }}{% elif user %}{{ user }}{% else %}Organizer{% endif %},<br>
+            Congratulations! Your hackathon <strong>"{{ hackathon_title|default:'Your Hackathon' }}"</strong> has been created successfully.
           </p>
           <div class="hackathon-card">
             <p style="margin: 6px 0;"><strong>Venue:</strong> {{ venue|default:"Online" }}</p>

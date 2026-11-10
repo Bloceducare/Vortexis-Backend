@@ -37,7 +37,7 @@
       padding: 36px 40px;
     }
     .cta-button {
-      background-color: #4f46e5;
+      background-color: #605DEC;
       color: #ffffff !important;
       text-decoration: none;
       font-size: 14px;
@@ -72,7 +72,7 @@
       </tr>
       <tr>
         <td class="content">
-          <h1 style="color: #0f172a; font-size: 22px; margin-top: 0;">Welcome to Vortexis, {{ user.first_name|default:user.username }}!</h1>
+          <h1 style="color: #0f172a; font-size: 22px; margin-top: 0;">Welcome to Vortexis{% if user.first_name %}, {{ user.first_name }}{% elif user.username %}, {{ user.username }}{% elif user %}, {{ user }}{% endif %}!</h1>
           <p style="color: #475569; font-size: 15px; line-height: 1.6;">
             We're thrilled to have you here. Vortexis is the premier hackathon platform connecting innovators, builders, and organizations from around the globe.
           </p>

@@ -115,11 +115,17 @@ class SubmissionSerializer(serializers.ModelSerializer):
     team = serializers.SerializerMethodField()
     reviews = serializers.SerializerMethodField()
     hackathon = serializers.PrimaryKeyRelatedField(read_only=True)
+    currency = serializers.SerializerMethodField()
 
     class Meta:
         model = Submission
-        fields = ['id', 'project', 'team', 'hackathon', 'approved', 'status', 'reviews', 'created_at', 'updated_at']
-        read_only_fields = ['created_at', 'updated_at', 'hackathon', 'project', 'team', 'reviews']
+        fields = ['id', 'project', 'team', 'hackathon', 'currency', 'approved', 'status', 'reviews', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at', 'hackathon', 'currency', 'project', 'team', 'reviews']
+
+    def get_currency(self, obj):
+        if obj.hackathon:
+            return getattr(obj.hackathon, 'currency', 'USD') or 'USD'
+        return 'USD'
 
     def get_project(self, obj):
         if not obj.project:
@@ -370,6 +376,10 @@ class HackathonSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         
+        # Always guarantee currency is returned (fallback to USD)
+        if not data.get('currency'):
+            data['currency'] = getattr(instance, 'currency', 'USD') or 'USD'
+        
         # Only include evaluation_criteria for judges and organizers
         request = self.context.get('request')
         if request and hasattr(request, 'user') and request.user.is_authenticated:
@@ -425,9 +435,10 @@ class HackathonSerializer(serializers.ModelSerializer):
 class CreateHackathonSerializer(HackathonSerializer):
     banner_image_file = serializers.URLField(write_only=True, required=False, allow_blank=True)
     organization_id = serializers.IntegerField(write_only=True, required=True)
+    currency = serializers.CharField(max_length=10, required=False, default="USD", allow_blank=True)
 
     class Meta(HackathonSerializer.Meta):
-        fields = ['organization_id', 'title', 'description', 'banner_image', 'banner_image_file', 'visibility', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'rules', 'prizes', 'evaluation_criteria']
+        fields = ['organization_id', 'title', 'description', 'banner_image', 'banner_image_file', 'visibility', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'currency', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'rules', 'prizes', 'evaluation_criteria']
         extra_kwargs = {
             'banner_image': {'read_only': True}
         }
@@ -475,6 +486,9 @@ class CreateHackathonSerializer(HackathonSerializer):
         from organization.models import Organization
         organization = Organization.objects.get(id=organization_id)
 
+        if not validated_data.get('currency'):
+            validated_data['currency'] = 'USD'
+
         hackathon = Hackathon.objects.create(
             **validated_data,
             organization=organization
@@ -490,9 +504,10 @@ class CreateHackathonSerializer(HackathonSerializer):
 
 class UpdateHackathonSerializer(HackathonSerializer):
     banner_image_file = serializers.URLField(write_only=True, required=False, allow_blank=True)
+    currency = serializers.CharField(max_length=10, required=False, allow_blank=True)
     
     class Meta(HackathonSerializer.Meta):
-        fields = ['title', 'description', 'banner_image', 'banner_image_file', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'visibility', 'rules', 'prizes', 'evaluation_criteria']
+        fields = ['title', 'description', 'banner_image', 'banner_image_file', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'currency', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'visibility', 'rules', 'prizes', 'evaluation_criteria']
         extra_kwargs = {field: {'required': False} for field in fields if field != 'banner_image'}
         extra_kwargs['banner_image'] = {'read_only': True}
 

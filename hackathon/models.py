@@ -29,6 +29,7 @@ class Hackathon(models.Model):
     evaluation_criteria = models.TextField(blank=True, help_text="Evaluation criteria for judges (only visible to judges and organizers)")
     results_released = models.BooleanField(default=False, help_text="Whether hackathon results and leaderboard are released to participants and the public")
     results_released_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when results were officially released")
+    currency= models.TextField(default="USD", max_length=10, null=False, blank=False)
 
     def __str__(self):
         return self.title
