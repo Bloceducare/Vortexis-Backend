@@ -1,7 +1,10 @@
 import datetime
 from unittest.mock import patch
 
+from io import StringIO
+
 from django.core import mail
+from django.core.management import call_command
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -281,3 +284,56 @@ class ListFilterTests(ConsoleBase):
         self.client.post(f'{CONSOLE}/settings/', {'key': 'support_email', 'value': 'a@b.c'})
         self.assertEqual(len(self.ids('/settings/?key=support')), 1)
         self.assertEqual(self.ids('/settings/?is_active=true'), self.ids('/settings/'))
+
+
+class FixOrganizerRolesCommandTests(ConsoleBase):
+    """Repairs organizations that were approved before approval granted the role."""
+
+    def run_command(self, *args):
+        out = StringIO()
+        call_command('fix_organizer_roles', *args, stdout=out)
+        return out.getvalue()
+
+    def stranded_org(self, name, approved=True):
+        user = make_user(f'org_{name}', is_verified=True)
+        Organization.objects.create(name=name, description='d', organizer=user, is_approved=approved)
+        return user
+
+    def test_dry_run_reports_but_changes_nothing(self):
+        stranded = self.stranded_org('a')
+        out = self.run_command()
+        stranded.refresh_from_db()
+        self.assertFalse(stranded.is_organizer)
+        self.assertIn('Dry run', out)
+        self.assertIn(f'user #{stranded.id}', out)
+
+    def test_apply_grants_the_role_to_approved_organizers_only(self):
+        approved = self.stranded_org('approved')
+        pending = self.stranded_org('pending', approved=False)
+        out = self.run_command('--apply')
+        approved.refresh_from_db()
+        pending.refresh_from_db()
+        self.assertTrue(approved.is_organizer)
+        self.assertFalse(pending.is_organizer)  # unapproved orgs must not get the role
+        self.assertIn('Granted the organizer role to', out)
+
+    def test_it_is_idempotent_and_leaves_other_users_alone(self):
+        self.stranded_org('a')
+        bystander = make_user('bystander', is_verified=True)
+        self.run_command('--apply')
+        out = self.run_command('--apply')
+        bystander.refresh_from_db()
+        self.assertFalse(bystander.is_organizer)
+        self.assertIn('Nothing to fix', out)
+
+    def test_repaired_organizer_passes_the_hackathon_creation_gate(self):
+        stranded = self.stranded_org('gate')
+        self.client.force_authenticate(stranded)
+        before = self.client.post('/api/v1/hackathon/create/', {'title': 'X'}, format='json')
+        self.assertEqual(before.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.run_command('--apply')
+        stranded.refresh_from_db()
+        self.client.force_authenticate(stranded)
+        after = self.client.post('/api/v1/hackathon/create/', {'title': 'X'}, format='json')
+        self.assertEqual(after.status_code, status.HTTP_400_BAD_REQUEST)  # past the gate; payload incomplete
