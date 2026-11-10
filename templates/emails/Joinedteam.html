@@ -61,7 +61,7 @@
       margin: 20px 0;
     }
     .cta-button {
-      background-color: #7c3aed;
+      background-color: #605DEC;
       color: #ffffff !important;
       text-decoration: none;
       font-size: 14px;
@@ -99,8 +99,8 @@
           <span class="badge">Team Updated</span>
           <h1 style="color: #0f172a; font-size: 22px; margin-top: 0;">Welcome to Team {{ team_name }}!</h1>
           <p style="color: #475569; font-size: 15px; line-height: 1.6;">
-            Hi {{ user.first_name|default:user.username }},<br>
-            You have successfully joined team <strong>{{ team_name }}</strong> for the hackathon <strong>"{{ hackathon_title }}"</strong>.
+            Hi {% if user.first_name %}{{ user.first_name }}{% elif user.username %}{{ user.username }}{% elif user %}{{ user }}{% else %}Builder{% endif %},<br>
+            You have successfully joined team <strong>{{ team_name|default:'the team' }}</strong> for the hackathon <strong>"{{ hackathon_title|default:'the hackathon' }}"</strong>.
           </p>
           <div class="card">
             <p style="margin: 6px 0;"><strong>Team Name:</strong> {{ team_name }}</p>

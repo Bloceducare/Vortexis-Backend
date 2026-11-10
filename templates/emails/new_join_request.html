@@ -98,7 +98,7 @@
       padding-bottom: 0;
     }
     .btn-action {
-      background-color: #6A4BFF;
+      background-color: #605DEC;
       color: #FFFFFF !important;
       text-decoration: none;
       font-size: 15px;
@@ -110,7 +110,7 @@
     }
     .tips-box {
       background-color: #F8FAFC;
-      border-left: 4px solid #6A4BFF;
+      border-left: 4px solid #605DEC;
       padding: 14px 18px;
       border-radius: 6px;
       margin: 26px 0 0 0;
@@ -126,7 +126,7 @@
       line-height: 1.6;
     }
     .footer a {
-      color: #6A4BFF;
+      color: #605DEC;
       text-decoration: none;
     }
     @media only screen and (max-width: 600px) {
@@ -175,8 +175,8 @@
               </h1>
 
               <p class="paragraph" style="color: #475569; font-size: 15px; line-height: 1.65; margin: 0 0 20px 0;">
-                Hello <strong>{{ organizer.first_name|default:organizer.username|default:'Team Organizer' }}</strong>,<br>
-                <strong>{{ applicant_name }}</strong> (<a href="mailto:{{ applicant_email }}" style="color: #6A4BFF; text-decoration: none;">{{ applicant_email }}</a>) has requested to join your team <strong>&ldquo;{{ team_name }}&rdquo;</strong> for <strong>{{ hackathon_title }}</strong>.
+                Hello <strong>{% if recipient_name %}{{ recipient_name }}{% elif organizer.first_name %}{{ organizer.first_name }}{% elif organizer.username %}{{ organizer.username }}{% elif user.first_name %}{{ user.first_name }}{% elif user.username %}{{ user.username }}{% else %}Team Lead{% endif %}</strong>,<br>
+                <strong>{{ applicant_name|default:"A participant" }}</strong> (<a href="mailto:{{ applicant_email|default:'#' }}" style="color: #605DEC; text-decoration: none;">{{ applicant_email|default:"no email provided" }}</a>) has requested to join your team <strong>&ldquo;{{ team_name|default:"your team" }}&rdquo;</strong> for <strong>{{ hackathon_title|default:"the hackathon" }}</strong>.
               </p>
 
               <!-- Request Details Card -->
@@ -217,13 +217,13 @@
 
               <!-- CTA Button -->
               <div style="text-align: center; margin: 32px 0 28px 0;">
-                <a href="{{ action_url|default:'/' }}" class="btn-action" style="background-color: #6A4BFF; color: #FFFFFF !important; text-decoration: none; font-size: 15px; font-weight: 600; padding: 14px 36px; border-radius: 8px; display: inline-block;">
+                <a href="{{ action_url|default:'/' }}" class="btn-action" style="background-color: #605DEC; color: #FFFFFF !important; text-decoration: none; font-size: 15px; font-weight: 600; padding: 14px 36px; border-radius: 8px; display: inline-block;">
                   {{ action_text|default:'Review & Respond' }} &rarr;
                 </a>
               </div>
 
               <!-- Next steps info -->
-              <div class="tips-box" style="background-color: #F8FAFC; border-left: 4px solid #6A4BFF; padding: 14px 18px; border-radius: 6px; margin: 26px 0 0 0;">
+              <div class="tips-box" style="background-color: #F8FAFC; border-left: 4px solid #605DEC; padding: 14px 18px; border-radius: 6px; margin: 26px 0 0 0;">
                 <strong style="color: #1E293B; font-size: 14px; display: block; margin-bottom: 4px;">What happens next?</strong>
                 <span style="color: #475569; font-size: 13px; line-height: 1.5;">
                   You can approve or decline this request directly in your team dashboard. Once approved, the member will immediately be added to your team roster and group communications.
@@ -237,9 +237,9 @@
             <td class="footer" style="background-color: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 24px 30px; text-align: center; font-size: 12px; color: #94A3B8; line-height: 1.6;">
               <p style="margin: 0 0 8px 0; font-weight: 600; color: #64748B;">Vortexis Hackathon Platform</p>
               <p style="margin: 0 0 12px 0;">
-                <a href="{{ site_url|default:'https://vortexis.io' }}/teams" style="color: #6A4BFF; text-decoration: none; margin: 0 8px;">My Teams</a> &bull;
-                <a href="{{ site_url|default:'https://vortexis.io' }}/hackathons" style="color: #6A4BFF; text-decoration: none; margin: 0 8px;">Hackathons</a> &bull;
-                <a href="{{ site_url|default:'https://vortexis.io' }}/help" style="color: #6A4BFF; text-decoration: none; margin: 0 8px;">Help Center</a>
+                <a href="{{ site_url|default:'https://vortexis.io' }}/teams" style="color: #605DEC; text-decoration: none; margin: 0 8px;">My Teams</a> &bull;
+                <a href="{{ site_url|default:'https://vortexis.io' }}/hackathons" style="color: #605DEC; text-decoration: none; margin: 0 8px;">Hackathons</a> &bull;
+                <a href="{{ site_url|default:'https://vortexis.io' }}/help" style="color: #605DEC; text-decoration: none; margin: 0 8px;">Help Center</a>
               </p>
               <p style="margin: 0; font-size: 11px; color: #94A3B8;">
                 &copy; Vortexis. All rights reserved.<br>

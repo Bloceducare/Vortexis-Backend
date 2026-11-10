@@ -125,7 +125,7 @@
       vertical-align: top;
     }
     .btn-approved {
-      background-color: #6A4BFF;
+      background-color: #605DEC;
       color: #FFFFFF !important;
       text-decoration: none;
       font-size: 15px;
@@ -172,7 +172,7 @@
       line-height: 1.6;
     }
     .footer a {
-      color: #6A4BFF;
+      color: #605DEC;
       text-decoration: none;
     }
     @media only screen and (max-width: 600px) {
@@ -228,8 +228,8 @@
                     You're on the team!
                   </h1>
                   <p class="paragraph" style="color: #475569; font-size: 15px; line-height: 1.65; margin: 0 0 20px 0;">
-                    Hi <strong>{{ user.first_name|default:user.username }}</strong>,<br>
-                    Great news! Your request to join team <strong>&ldquo;{{ team_name }}&rdquo;</strong> for <strong>{{ hackathon_title }}</strong> has been approved by the team organizer.
+                    Hi <strong>{% if user.first_name %}{{ user.first_name }}{% elif user.username %}{{ user.username }}{% elif user %}{{ user }}{% else %}Builder{% endif %}</strong>,<br>
+                    Great news! Your request to join team <strong>&ldquo;{{ team_name|default:"the team" }}&rdquo;</strong> for <strong>{{ hackathon_title|default:"the hackathon" }}</strong> has been approved by the team organizer.
                   </p>
 
                   <!-- Team Details Card -->
@@ -266,7 +266,7 @@
 
                   <!-- CTA Button -->
                   <div style="text-align: center; margin: 30px 0 26px 0;">
-                    <a href="{{ action_url|default:'/' }}" class="btn-approved" style="background-color: #6A4BFF; color: #FFFFFF !important; text-decoration: none; font-size: 15px; font-weight: 600; padding: 14px 34px; border-radius: 8px; display: inline-block;">
+                    <a href="{{ action_url|default:'/' }}" class="btn-approved" style="background-color: #605DEC; color: #FFFFFF !important; text-decoration: none; font-size: 15px; font-weight: 600; padding: 14px 34px; border-radius: 8px; display: inline-block;">
                       {{ action_text|default:'View Team Workspace' }} &rarr;
                     </a>
                   </div>
@@ -290,8 +290,8 @@
                     Update on your join request
                   </h1>
                   <p class="paragraph" style="color: #475569; font-size: 15px; line-height: 1.65; margin: 0 0 20px 0;">
-                    Hi <strong>{{ user.first_name|default:user.username }}</strong>,<br>
-                    Thank you for your interest in joining <strong>&ldquo;{{ team_name }}&rdquo;</strong> for <strong>{{ hackathon_title }}</strong>. The team organizer was unable to accept your join request at this time.
+                    Hi <strong>{% if user.first_name %}{{ user.first_name }}{% elif user.username %}{{ user.username }}{% elif user %}{{ user }}{% else %}Builder{% endif %}</strong>,<br>
+                    Thank you for your interest in joining <strong>&ldquo;{{ team_name|default:"the team" }}&rdquo;</strong> for <strong>{{ hackathon_title|default:"the hackathon" }}</strong>. The team organizer was unable to accept your join request at this time.
                   </p>
 
                   <!-- Team Details Card -->
@@ -342,9 +342,9 @@
             <td class="footer" style="background-color: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 24px 30px; text-align: center; font-size: 12px; color: #94A3B8; line-height: 1.6;">
               <p style="margin: 0 0 8px 0; font-weight: 600; color: #64748B;">Vortexis Hackathon Platform</p>
               <p style="margin: 0 0 12px 0;">
-                <a href="{{ site_url|default:'https://vortexis.io' }}/hackathons" style="color: #6A4BFF; text-decoration: none; margin: 0 8px;">Explore Hackathons</a> &bull;
-                <a href="{{ site_url|default:'https://vortexis.io' }}/teams" style="color: #6A4BFF; text-decoration: none; margin: 0 8px;">My Teams</a> &bull;
-                <a href="{{ site_url|default:'https://vortexis.io' }}/help" style="color: #6A4BFF; text-decoration: none; margin: 0 8px;">Help Center</a>
+                <a href="{{ site_url|default:'https://vortexis.io' }}/hackathons" style="color: #605DEC; text-decoration: none; margin: 0 8px;">Explore Hackathons</a> &bull;
+                <a href="{{ site_url|default:'https://vortexis.io' }}/teams" style="color: #605DEC; text-decoration: none; margin: 0 8px;">My Teams</a> &bull;
+                <a href="{{ site_url|default:'https://vortexis.io' }}/help" style="color: #605DEC; text-decoration: none; margin: 0 8px;">Help Center</a>
               </p>
               <p style="margin: 0; font-size: 11px; color: #94A3B8;">
                 &copy; Vortexis. All rights reserved.<br>

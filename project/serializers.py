@@ -155,7 +155,8 @@ class ProjectSerializer(serializers.ModelSerializer):
                 'id': obj.hackathon.id,
                 'title': obj.hackathon.title,
                 'start_date': obj.hackathon.start_date,
-                'end_date': obj.hackathon.end_date
+                'end_date': obj.hackathon.end_date,
+                'currency': getattr(obj.hackathon, 'currency', 'USD') or 'USD'
             }
         return None
 

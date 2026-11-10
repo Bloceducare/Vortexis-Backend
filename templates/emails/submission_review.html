@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>New Review for Your Submission: {{ project_title }}</title>
+  <title>New Review for Your Submission: {{ project_title|default:"Your Project" }}</title>
   <style type="text/css">
     body, table, td, a {
       -webkit-text-size-adjust: 100%;
@@ -44,16 +44,17 @@
       overflow: hidden;
       border: 1px solid #E2E8F0;
       border-collapse: separate;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
     }
     .header {
       background-color: #ffffff !important;
-      padding: 32px 24px 20px 24px;
+      padding: 32px 24px 24px 24px;
       text-align: center;
       border-bottom: 1px solid #F1F5F9;
     }
     .content {
       padding: 40px 36px;
+      background-color: #ffffff;
     }
     .badge-review {
       display: inline-block;
@@ -89,7 +90,7 @@
       margin: 24px 0 28px 0;
     }
     .detail-row {
-      padding: 8px 0;
+      padding: 9px 0;
       font-size: 14px;
       border-bottom: 1px solid #EEF2F6;
     }
@@ -99,181 +100,159 @@
     }
     .score-badge {
       display: inline-block;
-      background: linear-gradient(135deg, #6A4BFF 0%, #4F46E5 100%);
-      background-color: #6A4BFF;
+      background-color: #605DEC;
       color: #FFFFFF;
       font-weight: 800;
-      font-size: 16px;
-      padding: 4px 14px;
+      font-size: 14px;
+      padding: 4px 12px;
       border-radius: 6px;
     }
     .feedback-box {
       background-color: #FFFFFF;
-      border: 1px dashed #CBD5E1;
+      border: 1px solid #E2E8F0;
       border-radius: 8px;
       padding: 14px 18px;
-      margin-top: 12px;
+      margin-top: 10px;
       font-style: italic;
       color: #334155;
       font-size: 14px;
       line-height: 1.6;
     }
     .btn-action {
-      background-color: #6A4BFF;
-      color: #FFFFFF !important;
-      text-decoration: none;
+      display: inline-block;
+      background-color: #605DEC;
+      color: #ffffff !important;
       font-size: 15px;
-      font-weight: 600;
+      font-weight: 700;
+      text-decoration: none;
       padding: 14px 34px;
       border-radius: 8px;
-      display: inline-block;
-      box-shadow: 0 4px 14px rgba(106, 75, 255, 0.35);
+      box-shadow: 0 4px 14px rgba(96, 93, 236, 0.25);
     }
     .tips-box {
       background-color: #F8FAFC;
-      border-left: 4px solid #6A4BFF;
+      border-left: 4px solid #605DEC;
       padding: 16px 20px;
       border-radius: 6px;
       margin: 26px 0 0 0;
-      text-align: left;
     }
     .footer {
-      background-color: #F8FAFC;
-      border-top: 1px solid #E2E8F0;
-      padding: 24px 30px;
+      background-color: #ffffff;
+      border-top: 1px solid #F1F5F9;
+      padding: 28px 24px;
       text-align: center;
       font-size: 12px;
       color: #94A3B8;
       line-height: 1.6;
     }
-    .footer a {
-      color: #6A4BFF;
-      text-decoration: none;
-    }
-    @media only screen and (max-width: 600px) {
-      .content {
-        padding: 28px 20px !important;
-      }
-      .main-table {
-        border-radius: 0 !important;
-      }
-      .detail-row {
-        padding: 10px 0;
-      }
-    }
   </style>
 </head>
-<body bgcolor="#F8FAFC" style="margin: 0; padding: 0; background-color: #F8FAFC;">
-  <table role="presentation" width="100%" bgcolor="#F8FAFC" cellpadding="0" cellspacing="0" border="0" style="background-color: #F8FAFC; width: 100%;">
-    <tr>
-      <td align="center" style="padding: 40px 10px;">
-        <!-- Email Container -->
-        <table role="presentation" class="main-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #E2E8F0; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);">
-          <!-- Header with Official Vortexis Color Logo -->
-          <tr>
-            <td class="header" align="center" bgcolor="#FFFFFF" style="background-color: #FFFFFF !important; padding: 32px 24px 20px 24px; text-align: center; border-bottom: 1px solid #F1F5F9;">
-              <a href="{{ site_url|default:'https://vortexis.io' }}" target="_blank" style="text-decoration: none; display: inline-block;">
-                <img src="{{ logo_url|default:'https://res.cloudinary.com/dvuwy2tny/image/upload/v1793870772/vortexis_logo_color.png' }}" 
-                     alt="Vortexis" 
-                     width="160" 
-                     height="37" 
-                     border="0" 
-                     style="display: block; margin: 0 auto; width: 160px; max-width: 160px; height: 37px; border: 0; outline: none; text-decoration: none;" />
-              </a>
-            </td>
-          </tr>
+<body bgcolor="#F8FAFC">
+  <div class="wrapper" style="background-color: #F8FAFC; padding: 40px 0;">
+    <table class="main-table" align="center" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background-color: #ffffff; margin: 0 auto; border-radius: 12px; overflow: hidden; border: 1px solid #E2E8F0; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);">
+      <!-- Header with Official Vortexis Color Logo -->
+      <tr>
+        <td class="header" align="center" bgcolor="#FFFFFF" style="background-color: #FFFFFF !important; padding: 32px 24px 24px 24px; text-align: center; border-bottom: 1px solid #F1F5F9;">
+          <a href="{{ site_url|default:'https://vortexis.io' }}" target="_blank" style="text-decoration: none; display: inline-block;">
+            <img src="{{ logo_url|default:'https://res.cloudinary.com/dvuwy2tny/image/upload/v1793870772/vortexis_logo_color.png' }}" 
+                 alt="Vortexis" 
+                 width="160" 
+                 height="37" 
+                 border="0" 
+                 style="display: block; margin: 0 auto; width: 160px; max-width: 160px; height: 37px; border: 0; outline: none; text-decoration: none;" />
+          </a>
+        </td>
+      </tr>
 
-          <!-- Main Content -->
-          <tr>
-            <td class="content" style="padding: 40px 36px; text-align: left;">
-              <!-- Badge -->
-              <span class="badge-review" style="display: inline-block; background-color: #EEF2FF; color: #4F46E5; border: 1px solid #C7D2FE; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; padding: 6px 14px; border-radius: 9999px; text-transform: uppercase; margin-bottom: 18px;">
-                &#11088; New Judge Review
-              </span>
+      <!-- Content -->
+      <tr>
+        <td class="content" bgcolor="#FFFFFF" style="padding: 40px 36px; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <span class="badge-review" style="display: inline-block; background-color: #EEF2FF; color: #4F46E5; border: 1px solid #C7D2FE; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; padding: 6px 14px; border-radius: 9999px; text-transform: uppercase;">
+              ★ New Judge Evaluation
+            </span>
+            <h1 class="headline" style="color: #0F172A; font-size: 24px; font-weight: 800; line-height: 1.3; margin: 12px 0 10px 0;">
+              Your Submission Received a Review
+            </h1>
+            <p class="paragraph" style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 auto; max-width: 480px;">
+              A judge has completed an evaluation of your hackathon project.
+            </p>
+          </div>
 
-              <h1 class="headline" style="color: #0F172A; font-size: 24px; font-weight: 800; line-height: 1.3; margin: 0 0 14px 0;">
-                Your submission received a review
-              </h1>
+          <p class="paragraph" style="color: #334155; font-size: 15px; line-height: 1.65; margin: 0 0 16px 0;">
+            Hi <strong>{% if user and user.first_name %}{{ user.first_name }}{% elif user and user.username %}{{ user.username }}{% elif recipient_name %}{{ recipient_name }}{% else %}Participant{% endif %}</strong>,
+          </p>
+          <p class="paragraph" style="color: #475569; font-size: 15px; line-height: 1.65; margin: 0 0 20px 0;">
+            Great news! Your submission <strong>&ldquo;{{ project_title }}&rdquo;</strong> for <strong>{{ hackathon_title }}</strong> has received a new evaluation review from the judging panel.
+          </p>
 
-              <p class="paragraph" style="color: #475569; font-size: 15px; line-height: 1.65; margin: 0 0 20px 0;">
-                Hi <strong>{{ user.first_name|default:user.username }}</strong>,<br>
-                Great news! Your submission <strong>&ldquo;{{ project_title }}&rdquo;</strong> for <strong>{{ hackathon_title }}</strong> has received a new evaluation review from the judging panel.
-              </p>
+          <!-- Details Card -->
+          <div class="details-card" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 20px 24px; margin: 24px 0 28px 0;">
+            <div style="font-size: 13px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">
+              Evaluation Summary
+            </div>
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td class="detail-row" style="padding: 9px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
+                  <span style="color: #64748B; font-weight: 500; display: inline-block; width: 130px;">Project Title:</span>
+                  <strong style="color: #0F172A;">{{ project_title }}</strong>
+                </td>
+              </tr>
+              <tr>
+                <td class="detail-row" style="padding: 9px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
+                  <span style="color: #64748B; font-weight: 500; display: inline-block; width: 130px;">Hackathon:</span>
+                  <span style="color: #0F172A; font-weight: 600;">{{ hackathon_title }}</span>
+                </td>
+              </tr>
+              {% if overall_score is not None %}
+              <tr>
+                <td class="detail-row" style="padding: 9px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
+                  <span style="color: #64748B; font-weight: 500; display: inline-block; width: 130px;">Overall Score:</span>
+                  <span class="score-badge" style="background-color: #605DEC; color: #FFFFFF; font-weight: 800; font-size: 14px; padding: 3px 12px; border-radius: 6px; display: inline-block;">
+                    {{ overall_score }} / 10
+                  </span>
+                </td>
+              </tr>
+              {% endif %}
+              {% if review_comments and review_comments != 'No comments provided' %}
+              <tr>
+                <td style="padding: 12px 0 4px 0; font-size: 14px;">
+                  <span style="color: #64748B; font-weight: 500; display: block; margin-bottom: 6px;">Judge Feedback:</span>
+                  <div class="feedback-box" style="background-color: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px 18px; font-style: italic; color: #334155; font-size: 14px; line-height: 1.6;">
+                    &ldquo;{{ review_comments }}&rdquo;
+                  </div>
+                </td>
+              </tr>
+              {% endif %}
+            </table>
+          </div>
 
-              <!-- Details Card -->
-              <div class="details-card" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 18px 22px; margin: 24px 0 28px 0;">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                  <tr>
-                    <td class="detail-row" style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
-                      <span style="color: #64748B; font-weight: 500; display: inline-block; width: 120px;">Project:</span>
-                      <strong style="color: #0F172A;">{{ project_title }}</strong>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="detail-row" style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
-                      <span style="color: #64748B; font-weight: 500; display: inline-block; width: 120px;">Hackathon:</span>
-                      <strong style="color: #0F172A;">{{ hackathon_title }}</strong>
-                    </td>
-                  </tr>
-                  {% if overall_score is not None %}
-                  <tr>
-                    <td class="detail-row" style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
-                      <span style="color: #64748B; font-weight: 500; display: inline-block; width: 120px;">Overall Score:</span>
-                      <span class="score-badge" style="background-color: #6A4BFF; color: #FFFFFF; font-weight: 800; font-size: 14px; padding: 3px 12px; border-radius: 6px; display: inline-block;">
-                        {{ overall_score }} / 10
-                      </span>
-                    </td>
-                  </tr>
-                  {% endif %}
-                  {% if review_comments and review_comments != 'No comments provided' %}
-                  <tr>
-                    <td style="padding: 12px 0 4px 0; font-size: 14px;">
-                      <span style="color: #64748B; font-weight: 500; display: block; margin-bottom: 6px;">Judge Comments:</span>
-                      <div class="feedback-box" style="background-color: #FFFFFF; border: 1px dashed #CBD5E1; border-radius: 8px; padding: 14px 18px; font-style: italic; color: #334155; font-size: 14px; line-height: 1.6;">
-                        &ldquo;{{ review_comments }}&rdquo;
-                      </div>
-                    </td>
-                  </tr>
-                  {% endif %}
-                </table>
-              </div>
+          <!-- CTA Button -->
+          <div style="text-align: center; margin: 32px 0 20px 0;">
+            <a href="{{ action_url|default:'https://vortexis.io' }}" class="btn-action" style="display: inline-block; background-color: #605DEC; color: #ffffff !important; font-size: 15px; font-weight: 700; text-decoration: none; padding: 14px 34px; border-radius: 8px; box-shadow: 0 4px 14px rgba(96, 93, 236, 0.25);">
+              {{ action_text|default:'View Full Review & Scores' }} &rarr;
+            </a>
+          </div>
 
-              <!-- CTA Button -->
-              <div style="text-align: center; margin: 32px 0 28px 0;">
-                <a href="{{ action_url|default:'/' }}" class="btn-action" style="background-color: #6A4BFF; color: #FFFFFF !important; text-decoration: none; font-size: 15px; font-weight: 600; padding: 14px 36px; border-radius: 8px; display: inline-block;">
-                  {{ action_text|default:'View Full Review & Scores' }} &rarr;
-                </a>
-              </div>
+          <!-- Next steps info -->
+          <div class="tips-box" style="background-color: #F8FAFC; border-left: 4px solid #605DEC; padding: 16px 20px; border-radius: 6px; margin: 26px 0 0 0;">
+            <strong style="color: #1E293B; font-size: 14px; display: block; margin-bottom: 6px;">How scoring works:</strong>
+            <span style="color: #475569; font-size: 13px; line-height: 1.55; display: block;">
+              Final rankings and rubric score breakdowns are finalized once all assigned judges complete their evaluations. You can track updates on your submission page.
+            </span>
+          </div>
+        </td>
+      </tr>
 
-              <!-- Next steps info -->
-              <div class="tips-box" style="background-color: #F8FAFC; border-left: 4px solid #6A4BFF; padding: 16px 20px; border-radius: 6px; margin: 26px 0 0 0;">
-                <strong style="color: #1E293B; font-size: 14px; display: block; margin-bottom: 6px;">How judging works:</strong>
-                <span style="color: #475569; font-size: 13px; line-height: 1.55; display: block;">
-                  Final standings are calculated once all assigned judges have completed scoring across all criteria. Head over to your submission portal to see your full scorecard and feedback.
-                </span>
-              </div>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td class="footer" style="background-color: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 24px 30px; text-align: center; font-size: 12px; color: #94A3B8; line-height: 1.6;">
-              <p style="margin: 0 0 8px 0; font-weight: 600; color: #64748B;">Vortexis Hackathon Platform</p>
-              <p style="margin: 0 0 12px 0;">
-                <a href="{{ site_url|default:'https://vortexis.io' }}/hackathons" style="color: #6A4BFF; text-decoration: none; margin: 0 8px;">Explore Hackathons</a> &bull;
-                <a href="{{ site_url|default:'https://vortexis.io' }}/teams" style="color: #6A4BFF; text-decoration: none; margin: 0 8px;">My Teams</a> &bull;
-                <a href="{{ site_url|default:'https://vortexis.io' }}/help" style="color: #6A4BFF; text-decoration: none; margin: 0 8px;">Help Center</a>
-              </p>
-              <p style="margin: 0; font-size: 11px; color: #94A3B8;">
-                &copy; Vortexis. All rights reserved.<br>
-                You received this email because of submission review activity associated with your Vortexis account.
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
+      <!-- Footer -->
+      <tr>
+        <td class="footer" bgcolor="#FFFFFF" style="background-color: #ffffff; border-top: 1px solid #F1F5F9; padding: 28px 24px; text-align: center; font-size: 12px; color: #94A3B8; line-height: 1.6;">
+          <p style="margin: 0 0 8px 0;">This email was sent to {{ user.email|default:"you" }} regarding your hackathon submission.</p>
+          <p style="margin: 0 0 8px 0;">Need assistance? Contact <a href="mailto:support@web3bridge.com" style="color: #605DEC; text-decoration: none;">support@web3bridge.com</a>.</p>
+          <p style="margin: 0; color: #CBD5E1;">&copy; {{ current_year|default:"2026" }} Vortexis. All rights reserved.</p>
+        </td>
+      </tr>
+    </table>
+  </div>
 </body>
 </html>
-

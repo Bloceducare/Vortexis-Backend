@@ -664,7 +664,8 @@ class AcceptJudgeInvitationView(GenericAPIView):
             "message": "Judge invitation accepted successfully.",
             "hackathon": {
                 "id": invitation.hackathon.id,
-                "title": invitation.hackathon.title
+                "title": invitation.hackathon.title,
+                "currency": getattr(invitation.hackathon, 'currency', 'USD') or "USD"
             }
         }, status=status.HTTP_200_OK)
 
@@ -834,6 +835,16 @@ class SubmissionViewSet(ModelViewSet):
                     priority='high',
                     send_email=True,
                     send_in_app=True,
+                    template_name='emails/submission_approved.html',
+                    context={
+                        'submission_id': submission.id,
+                        'project_title': submission.project.title,
+                        'hackathon_id': submission.hackathon.id,
+                        'hackathon_title': submission.hackathon.title,
+                        'user': member,
+                        'action_url': f'/submissions/{submission.id}',
+                        'action_text': 'View Submission'
+                    },
                     data={
                         'submission_id': submission.id,
                         'project_title': submission.project.title,
@@ -878,6 +889,16 @@ class SubmissionViewSet(ModelViewSet):
                 priority='high',
                 send_email=True,
                 send_in_app=True,
+                template_name='emails/submission_approved.html',
+                context={
+                    'submission_id': submission.id,
+                    'project_title': submission.project.title,
+                    'hackathon_id': submission.hackathon.id,
+                    'hackathon_title': submission.hackathon.title,
+                    'user': member,
+                    'action_url': f'/submissions/{submission.id}',
+                    'action_text': 'View Submission'
+                },
                 data={
                     'submission_id': submission.id,
                     'project_title': submission.project.title,
@@ -927,6 +948,17 @@ class SubmissionViewSet(ModelViewSet):
                 priority='normal',
                 send_email=True,
                 send_in_app=True,
+                template_name='emails/submission_rejected.html',
+                context={
+                    'submission_id': submission.id,
+                    'project_title': submission.project.title,
+                    'hackathon_id': submission.hackathon.id,
+                    'hackathon_title': submission.hackathon.title,
+                    'reason': reason,
+                    'user': member,
+                    'action_url': f'/submissions/{submission.id}',
+                    'action_text': 'View Submission'
+                },
                 data={
                     'submission_id': submission.id,
                     'project_title': submission.project.title,
@@ -1481,7 +1513,8 @@ class HackathonProjectsView(APIView):
         return Response({
             "hackathon": {
                 "id": hackathon.id,
-                "title": hackathon.title
+                "title": hackathon.title,
+                "currency": getattr(hackathon, 'currency', 'USD') or "USD"
             },
             "projects_count": projects.count(),
             "projects": serializer.data
@@ -1575,7 +1608,8 @@ class HackathonLeaderboardView(APIView):
             return Response({
                 "hackathon": {
                     "id": hackathon.id,
-                    "title": hackathon.title
+                    "title": hackathon.title,
+                    "currency": getattr(hackathon, 'currency', 'USD') or "USD"
                 },
                 "results_released": False,
                 "message": "Results for this hackathon have not been released by the organizer yet. Stay tuned!",
@@ -1687,7 +1721,8 @@ class HackathonLeaderboardView(APIView):
         response_data = {
             "hackathon": {
                 "id": hackathon.id,
-                "title": hackathon.title
+                "title": hackathon.title,
+                "currency": getattr(hackathon, 'currency', 'USD') or "USD"
             },
             "results_released": hackathon.results_released,
             "results_released_at": hackathon.results_released_at,
@@ -1787,7 +1822,8 @@ class HackathonLiveReviewsView(APIView):
         return Response({
             "hackathon": {
                 "id": hackathon.id,
-                "title": hackathon.title
+                "title": hackathon.title,
+                "currency": getattr(hackathon, 'currency', 'USD') or "USD"
             },
             "results_released": hackathon.results_released,
             "total_reviews": len(data),
@@ -1824,7 +1860,8 @@ class HackathonApprovedSubmissionsView(APIView):
         return Response({
             "hackathon": {
                 "id": hackathon.id,
-                "title": hackathon.title
+                "title": hackathon.title,
+                "currency": getattr(hackathon, 'currency', 'USD') or "USD"
             },
             "count": submissions.count(),
             "submissions": serializer.data
@@ -1898,6 +1935,14 @@ class HackathonReleaseResultsView(APIView):
                                 priority='high',
                                 send_email=True,
                                 send_in_app=True,
+                                template_name='emails/results_released.html',
+                                context={
+                                    "hackathon_id": hackathon.id,
+                                    "hackathon_title": hackathon.title,
+                                    "user": participant,
+                                    "action_url": f"/dashboard/{hackathon.id}/leaderboard",
+                                    "action_text": "View Leaderboard"
+                                },
                                 data={
                                     "hackathon_id": hackathon.id,
                                     "hackathon_title": hackathon.title,
@@ -1918,7 +1963,8 @@ class HackathonReleaseResultsView(APIView):
             "message": f"Hackathon results have been successfully {status_text}.",
             "hackathon": {
                 "id": hackathon.id,
-                "title": hackathon.title
+                "title": hackathon.title,
+                "currency": getattr(hackathon, 'currency', 'USD') or "USD"
             },
             "results_released": hackathon.results_released,
             "results_released_at": hackathon.results_released_at,
@@ -1940,6 +1986,7 @@ class HackathonReleaseResultsView(APIView):
         return Response({
             "hackathon_id": hackathon.id,
             "title": hackathon.title,
+            "currency": getattr(hackathon, 'currency', 'USD') or "USD",
             "results_released": hackathon.results_released,
             "results_released_at": hackathon.results_released_at,
             "can_release": is_organizer

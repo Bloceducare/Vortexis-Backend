@@ -8,7 +8,7 @@
     body {
       margin: 0;
       padding: 0;
-      background-color: #0f172a;
+      background-color: #F8FAFC;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       color: #334155;
     }
@@ -145,7 +145,7 @@
       margin: 32px 0 12px 0;
     }
     .cta-button {
-      background-color: #4f46e5;
+      background-color: #605DEC;
       color: #ffffff !important;
       text-decoration: none;
       font-size: 14px;
@@ -189,7 +189,7 @@
           <span class="alert-badge">Creation Failed</span>
           <h1 class="heading">We couldn't create your hackathon</h1>
           <p class="intro-text">
-            Hi <strong>{{ user.first_name|default:user.username }}</strong>,<br>
+            Hi <strong>{% if user.first_name %}{{ user.first_name }}{% elif user.username %}{{ user.username }}{% elif user %}{{ user }}{% else %}Organizer{% endif %}</strong>,<br>
             Your attempt to create the hackathon <strong>"{{ hackathon_title|default:'Untitled Hackathon' }}"</strong> could not be completed.
           </p>
 
