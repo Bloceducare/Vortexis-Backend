@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Submission Update: {{ project_title|default:"Your Project" }}</title>
+  <style type="text/css">
+    body, table, td, a {
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+    table, td {
+      mso-table-lspace: 0pt;
+      mso-table-rspace: 0pt;
+    }
+    img {
+      -ms-interpolation-mode: bicubic;
+      border: 0;
+      height: auto;
+      line-height: 100%;
+      outline: none;
+      text-decoration: none;
+    }
+    body {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+      background-color: #F8FAFC;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #334155;
+    }
+    .wrapper {
+      width: 100% !important;
+      background-color: #F8FAFC;
+      padding: 40px 0;
+    }
+    .main-table {
+      background-color: #ffffff;
+      margin: 0 auto;
+      max-width: 600px;
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #E2E8F0;
+      border-collapse: separate;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+    }
+    .header {
+      background-color: #ffffff !important;
+      padding: 32px 24px 24px 24px;
+      text-align: center;
+      border-bottom: 1px solid #F1F5F9;
+    }
+    .content {
+      padding: 40px 36px;
+      background-color: #ffffff;
+    }
+    .badge-rejected {
+      display: inline-block;
+      background-color: #FFF1F2;
+      color: #E11D48;
+      border: 1px solid #FECDD3;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    .headline {
+      color: #0F172A;
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.3;
+      margin: 0 0 14px 0;
+    }
+    .paragraph {
+      color: #475569;
+      font-size: 15px;
+      line-height: 1.65;
+      margin: 0 0 20px 0;
+    }
+    .details-card {
+      background-color: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin: 24px 0 28px 0;
+    }
+    .reason-box {
+      background-color: #FFF1F2;
+      border-left: 4px solid #E11D48;
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin: 16px 0;
+      font-size: 14px;
+      color: #9F1239;
+      line-height: 1.6;
+    }
+    .btn-action {
+      display: inline-block;
+      background-color: #605DEC;
+      color: #ffffff !important;
+      font-size: 15px;
+      font-weight: 700;
+      text-decoration: none;
+      padding: 14px 32px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .footer {
+      background-color: #ffffff;
+      padding: 28px 24px;
+      text-align: center;
+      font-size: 12px;
+      color: #94A3B8;
+      border-top: 1px solid #F1F5F9;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body bgcolor="#F8FAFC">
+  <div class="wrapper" style="background-color: #F8FAFC; padding: 40px 0;">
+    <table class="main-table" align="center" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background-color: #ffffff; margin: 0 auto; border-radius: 12px; overflow: hidden; border: 1px solid #E2E8F0; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);">
+      <!-- Header -->
+      <tr>
+        <td class="header" align="center" bgcolor="#FFFFFF" style="background-color: #FFFFFF !important; padding: 32px 24px 24px 24px; text-align: center; border-bottom: 1px solid #F1F5F9;">
+          <a href="{{ site_url|default:'https://vortexis.io' }}" target="_blank" style="text-decoration: none; display: inline-block;">
+            <img src="{{ logo_url|default:'https://res.cloudinary.com/dvuwy2tny/image/upload/v1793870772/vortexis_logo_color.png' }}"
+                 alt="Vortexis"
+                 width="160"
+                 height="37"
+                 border="0"
+                 style="display: block; margin: 0 auto; width: 160px; max-width: 160px; height: 37px; border: 0; outline: none; text-decoration: none;" />
+          </a>
+        </td>
+      </tr>
+
+      <!-- Content -->
+      <tr>
+        <td class="content" bgcolor="#FFFFFF" style="padding: 40px 36px; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <span class="badge-rejected" style="display: inline-block; background-color: #FFF1F2; color: #E11D48; border: 1px solid #FECDD3; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; padding: 6px 14px; border-radius: 9999px; text-transform: uppercase;">
+              Submission Status Update
+            </span>
+            <h1 class="headline" style="color: #0F172A; font-size: 24px; font-weight: 800; line-height: 1.3; margin: 12px 0 10px 0;">
+              Submission Review Notice
+            </h1>
+            <p class="paragraph" style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 auto; max-width: 480px;">
+              Your submission for <strong>{{ hackathon_title }}</strong> was reviewed by the hackathon organizers.
+            </p>
+          </div>
+
+          <!-- Greeting -->
+          <p class="paragraph" style="color: #334155; font-size: 15px; line-height: 1.65; margin: 0 0 16px 0;">
+            Hello <strong>{% if user and user.first_name %}{{ user.first_name }}{% elif user and user.username %}{{ user.username }}{% elif recipient_name %}{{ recipient_name }}{% else %}Builder{% endif %}</strong>,
+          </p>
+          <p class="paragraph" style="color: #475569; font-size: 15px; line-height: 1.65; margin: 0 0 16px 0;">
+            Thank you for participating in <strong>{{ hackathon_title }}</strong>. After careful review, the organizers have determined that your project submission <strong>{{ project_title }}</strong> could not be approved at this time.
+          </p>
+
+          <!-- Reason Box -->
+          <div class="reason-box" style="background-color: #FFF1F2; border-left: 4px solid #E11D48; border-radius: 6px; padding: 14px 18px; margin: 16px 0 24px 0; font-size: 14px; color: #9F1239; line-height: 1.6;">
+            <strong>Organizer Feedback / Reason:</strong><br>
+            <span>{{ reason|default:"Submission does not meet the specified hackathon requirements or deliverables criteria." }}</span>
+          </div>
+
+          <!-- Details Card -->
+          <div class="details-card" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 20px 24px; margin: 20px 0 28px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-size: 14px;">
+                  <span style="color: #64748B; font-weight: 500; display: inline-block; width: 130px;">Project Title:</span>
+                  <strong style="color: #0F172A;">{{ project_title }}</strong>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-size: 14px;">
+                  <span style="color: #64748B; font-weight: 500; display: inline-block; width: 130px;">Hackathon:</span>
+                  <span style="color: #0F172A; font-weight: 600;">{{ hackathon_title }}</span>
+                </td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Action Button -->
+          <div style="text-align: center; margin: 28px 0 16px 0;">
+            <a href="{{ action_url|default:'https://vortexis.io' }}" target="_blank" class="btn-action" style="display: inline-block; background-color: #605DEC; color: #ffffff !important; font-size: 15px; font-weight: 700; text-decoration: none; padding: 14px 34px; border-radius: 8px;">
+              {{ action_text|default:"View Submission Details" }} &rarr;
+            </a>
+          </div>
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td class="footer" bgcolor="#FFFFFF" style="background-color: #ffffff; padding: 28px 24px; text-align: center; font-size: 12px; color: #94A3B8; border-top: 1px solid #F1F5F9; line-height: 1.6;">
+          <p style="margin: 0 0 8px 0;">Questions regarding this decision? Contact <a href="mailto:support@web3bridge.com" style="color: #605DEC; text-decoration: none;">support@web3bridge.com</a>.</p>
+          <p style="margin: 0; color: #CBD5E1;">&copy; {{ current_year|default:"2026" }} Vortexis. All rights reserved.</p>
+        </td>
+      </tr>
+    </table>
+  </div>
+</body>
+</html>

@@ -71,8 +71,13 @@ class NotificationService:
             
             # Send email notification if enabled
             if send_email and preferences.get_email_preference(category):
+                email_ctx = dict(context or {})
+                if action_url and 'action_url' not in email_ctx:
+                    email_ctx['action_url'] = action_url
+                if action_text and 'action_text' not in email_ctx:
+                    email_ctx['action_text'] = action_text
                 NotificationService.send_email_notification(
-                    user, title, message, template_name, context
+                    user, title, message, template_name, email_ctx
                 )
             
             return True
@@ -88,21 +93,25 @@ class NotificationService:
         """Send email notification to user"""
         try:
             html_message = None
-            # Use template if provided
-            if template_name:
-                email_context = dict(context or {})
-                if 'user' not in email_context:
-                    email_context['user'] = user
-                if 'subject' not in email_context:
-                    email_context['subject'] = subject
-                if 'title' not in email_context:
-                    email_context['title'] = subject
-                if 'message' not in email_context:
-                    email_context['message'] = message
+            email_context = dict(context or {})
+            if 'user' not in email_context:
+                email_context['user'] = user
+            if 'subject' not in email_context:
+                email_context['subject'] = subject
+            if 'title' not in email_context:
+                email_context['title'] = subject
+            if 'message' not in email_context:
+                email_context['message'] = message
+
+            target_template = template_name or 'emails/default_notification.html'
+            try:
+                html_message = render_to_string(target_template, email_context)
+            except Exception as render_err:
+                logger.error(f"Failed to render template {target_template}: {render_err}")
                 try:
-                    html_message = render_to_string(template_name, email_context)
-                except Exception as render_err:
-                    logger.error(f"Failed to render template {template_name}: {render_err}")
+                    html_message = render_to_string('emails/default_notification.html', email_context)
+                except Exception as def_err:
+                    logger.error(f"Failed to render default notification template: {def_err}")
                     html_message = None
 
             plain_message = message or "Please view this email in an HTML-compatible email client."
