@@ -9,6 +9,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import NotFound
+from django.db import transaction
 from django.db.models import Q
 from accounts.models import User
 from organization.models import Organization
@@ -79,6 +80,27 @@ def build_full_hackathon_response(hackathon, request):
     }
 
 
+def _flatten_serializer_errors(errors):
+    """Turn DRF's nested error structure into {field: [message, ...]} with plain strings."""
+    flat = {}
+    for field, value in errors.items():
+        if isinstance(value, dict):
+            for sub_field, sub_value in _flatten_serializer_errors(value).items():
+                flat[f"{field}.{sub_field}"] = sub_value
+        elif isinstance(value, (list, tuple)):
+            flat[field] = [str(v) for v in value]
+        else:
+            flat[field] = [str(value)]
+    return flat
+
+
+def _summarize_errors(flat_errors):
+    count = sum(len(v) for v in flat_errors.values())
+    if count == 1:
+        return next(iter(flat_errors.values()))[0]
+    return f"Please fix the {count} highlighted problems and try again."
+
+
 class HackathonCreateView(GenericAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = CreateHackathonSerializer
@@ -126,53 +148,45 @@ class HackathonCreateView(GenericAPIView):
                     "action_text": "Check Organization Status"
                 }
             )
+            logger.warning(
+                "Hackathon creation rejected: user is not an organizer user_id=%s title=%r",
+                user.id, hackathon_title,
+            )
             return Response(
-                {"detail": reason, "error": reason},
+                {"message": reason, "detail": reason, "error": reason, "errors": {}},
                 status=status.HTTP_403_FORBIDDEN
             )
 
         serializer = self.serializer_class(data=request.data, context={'request': request})
         if not serializer.is_valid():
-            reasons = []
-            for field, errors in serializer.errors.items():
-                if isinstance(errors, list):
-                    for err in errors:
-                        clean_err = str(err)
-                        field_name = field.replace('_', ' ').capitalize()
-                        reasons.append(f"{field_name}: {clean_err}" if field != 'non_field_errors' else clean_err)
-                elif isinstance(errors, dict):
-                    for subfield, suberrs in errors.items():
-                        reasons.append(f"{subfield}: {suberrs}")
-                else:
-                    reasons.append(f"{field}: {errors}")
-
-            NotificationService.send_notification(
-                user=user,
-                title="Hackathon Creation Failed",
-                message="Your hackathon could not be created for the following reasons: " + "; ".join(reasons),
-                category='account',
-                priority='high',
-                send_email=True,
-                send_in_app=True,
-                template_name="emails/hackathon_creation_failed.html",
-                context={
-                    "user": user,
-                    "hackathon_title": hackathon_title,
-                    "reasons": reasons,
-                    "action_url": "/hackathons",
-                    "action_text": "Review & Try Again"
-                }
+            errors = _flatten_serializer_errors(serializer.errors)
+            logger.warning(
+                "Hackathon creation rejected: validation failed user_id=%s org_id=%s title=%r errors=%s",
+                user.id, request.data.get('organization_id'), hackathon_title, errors,
             )
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            # No email/notification here: these are form mistakes the user sees inline
+            # immediately, so emailing them for each attempt is just noise.
+            return Response(
+                {
+                    "message": _summarize_errors(errors),
+                    "errors": errors,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
-            hackathon = serializer.save()
-        except Exception as e:
-            error_reason = str(e)
+            with transaction.atomic():
+                hackathon = serializer.save()
+        except Exception:
+            logger.exception(
+                "Hackathon creation failed while saving user_id=%s org_id=%s title=%r",
+                user.id, request.data.get('organization_id'), hackathon_title,
+            )
+            reason = "An unexpected server error occurred while saving your hackathon."
             NotificationService.send_notification(
                 user=user,
                 title="Hackathon Creation Failed",
-                message=f"An error occurred while saving your hackathon: {error_reason}",
+                message=f"{reason} Please try again. If the problem persists, contact support.",
                 category='account',
                 priority='high',
                 send_email=True,
@@ -181,15 +195,23 @@ class HackathonCreateView(GenericAPIView):
                 context={
                     "user": user,
                     "hackathon_title": hackathon_title,
-                    "reasons": [error_reason],
+                    "reasons": [reason],
                     "action_url": "/hackathons",
                     "action_text": "Try Again"
                 }
             )
             return Response(
-                {"error": "Failed to create hackathon.", "detail": error_reason},
-                status=status.HTTP_400_BAD_REQUEST
+                {
+                    "message": "We couldn't save your hackathon due to a server error. Your details are still in the form, please try again shortly.",
+                    "errors": {},
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+        logger.info(
+            "Hackathon created hackathon_id=%s user_id=%s org_id=%s title=%r",
+            hackathon.id, user.id, hackathon.organization_id, hackathon.title,
+        )
 
         # Send success notification to organizer
         NotificationService.send_notification(

@@ -333,5 +333,15 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': False,
         },
+        'hackathon': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'vortexis_backend': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }

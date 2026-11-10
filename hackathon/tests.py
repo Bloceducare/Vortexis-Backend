@@ -269,3 +269,88 @@ class HackathonRetrieveByNameTests(APITestCase):
         self.client.logout()
         response = self.client.get(LIST_URL, {'hackathon_name': 'global_hackathon'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+CREATE_URL = '/api/v1/hackathon/create/'
+
+
+class HackathonCreateTests(APITestCase):
+
+    def setUp(self):
+        cache.clear()
+        self.organizer = make_user(50)
+        self.organizer.is_organizer = True
+        self.organizer.save()
+        self.org = make_org(self.organizer)
+        self.client.force_authenticate(self.organizer)
+
+    def valid_payload(self, **overrides):
+        start = date.today() + timedelta(days=1)
+        end = start + timedelta(days=5)
+        payload = {
+            'organization_id': self.org.id,
+            'title': 'My Hackathon',
+            'description': '<p>Build things</p>',
+            'venue': 'Virtual',
+            'visibility': True,
+            'start_date': start.isoformat(),
+            'end_date': end.isoformat(),
+            'submission_deadline': f'{end.isoformat()}T23:59:59',
+            'min_team_size': 1,
+            'max_team_size': 5,
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_create_without_banner_succeeds(self):
+        res = self.client.post(CREATE_URL, self.valid_payload(), format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED, res.data)
+        self.assertTrue(Hackathon.objects.filter(title='My Hackathon').exists())
+
+    def test_null_banner_is_accepted(self):
+        res = self.client.post(CREATE_URL, self.valid_payload(banner_image_file=None), format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED, res.data)
+
+    def test_skills_are_saved(self):
+        from accounts.models import Skill
+        s1 = Skill.objects.create(name='Solidity')
+        s2 = Skill.objects.create(name='React')
+        res = self.client.post(CREATE_URL, self.valid_payload(skills=[s1.id, s2.id]), format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED, res.data)
+        hackathon = Hackathon.objects.get(title='My Hackathon')
+        self.assertEqual(set(hackathon.skills.values_list('id', flat=True)), {s1.id, s2.id})
+
+    def test_missing_fields_return_all_field_errors_with_friendly_messages(self):
+        res = self.client.post(CREATE_URL, {'organization_id': self.org.id}, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        errors = res.data['errors']
+        for field in ('title', 'description', 'venue', 'start_date', 'end_date', 'submission_deadline'):
+            self.assertIn(field, errors)
+        self.assertEqual(errors['venue'], ['Venue / location is required.'])
+        self.assertIn('message', res.data)
+
+    def test_cross_field_errors_are_keyed_by_field(self):
+        start = date.today() + timedelta(days=5)
+        payload = self.valid_payload(
+            start_date=start.isoformat(),
+            end_date=(start - timedelta(days=1)).isoformat(),
+            min_team_size=6,
+            max_team_size=2,
+        )
+        res = self.client.post(CREATE_URL, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('end_date', res.data['errors'])
+        self.assertIn('max_team_size', res.data['errors'])
+
+    def test_deadline_after_end_date_rejected(self):
+        payload = self.valid_payload()
+        end = date.fromisoformat(payload['end_date'])
+        payload['submission_deadline'] = f'{(end + timedelta(days=1)).isoformat()}T23:59:59'
+        res = self.client.post(CREATE_URL, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('submission_deadline', res.data['errors'])
+
+    def test_unknown_organization_is_reported_on_organization_id(self):
+        res = self.client.post(CREATE_URL, self.valid_payload(organization_id=99999), format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('organization_id', res.data['errors'])

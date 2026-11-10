@@ -13,7 +13,16 @@ def custom_exception_handler(exc, context):
     if response is not None:
         return response
 
-    logger.error("Unhandled exception in API request", exc_info=exc)
+    request = context.get("request")
+    view = context.get("view")
+    logger.error(
+        "Unhandled exception in API request method=%s path=%s view=%s user_id=%s",
+        getattr(request, "method", None),
+        getattr(request, "path", None),
+        type(view).__name__ if view else None,
+        getattr(getattr(request, "user", None), "id", None),
+        exc_info=exc,
+    )
 
     detail = "Internal server error."
     if settings.DEBUG:

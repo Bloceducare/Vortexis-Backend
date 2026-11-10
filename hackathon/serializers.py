@@ -3,7 +3,7 @@ from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from django.utils import timezone
 from team.models import Team
 from .models import Hackathon, Theme, Submission, Review, HackathonParticipant
-from accounts.models import User
+from accounts.models import User, Skill
 
 
 class ThemeSerializer(serializers.ModelSerializer):
@@ -422,15 +422,91 @@ class HackathonSerializer(serializers.ModelSerializer):
         return obj.submissions.count()
 
 
+def _required_messages(label):
+    """User-facing messages for a required field, keyed by DRF error code."""
+    return {
+        'required': f"{label} is required.",
+        'blank': f"{label} cannot be empty.",
+        'null': f"{label} is required.",
+    }
+
+
 class CreateHackathonSerializer(HackathonSerializer):
-    banner_image_file = serializers.URLField(write_only=True, required=False, allow_blank=True)
-    organization_id = serializers.IntegerField(write_only=True, required=True)
+    banner_image_file = serializers.URLField(
+        write_only=True, required=False, allow_blank=True, allow_null=True,
+        error_messages={'invalid': "Banner image must be a valid URL. Please re-upload the image."},
+    )
+    organization_id = serializers.IntegerField(
+        write_only=True, required=True,
+        error_messages={
+            **_required_messages("Organization"),
+            'invalid': "Organization is invalid. Please select an organization and try again.",
+        },
+    )
+    # Overrides the read-only SerializerMethodField inherited from HackathonSerializer,
+    # which previously caused selected skills to be silently dropped on create.
+    skills = serializers.PrimaryKeyRelatedField(
+        many=True, required=False, queryset=Skill.objects.all(),
+        error_messages={'does_not_exist': "One of the selected skills no longer exists. Please refresh the skills list."},
+    )
 
     class Meta(HackathonSerializer.Meta):
         fields = ['organization_id', 'title', 'description', 'banner_image', 'banner_image_file', 'visibility', 'venue', 'details', 'skills', 'themes', 'grand_prize', 'start_date', 'end_date', 'submission_deadline', 'min_team_size', 'max_team_size', 'rules', 'prizes', 'evaluation_criteria']
         extra_kwargs = {
-            'banner_image': {'read_only': True}
+            'banner_image': {'read_only': True},
+            'title': {'error_messages': {
+                **_required_messages("Hackathon name"),
+                'max_length': "Hackathon name must be at most {max_length} characters.",
+            }},
+            'description': {'error_messages': _required_messages("Description")},
+            'venue': {'error_messages': {
+                **_required_messages("Venue / location"),
+                'max_length': "Venue / location must be at most {max_length} characters.",
+            }},
+            'start_date': {'error_messages': {
+                **_required_messages("Start date"),
+                'invalid': "Start date is not a valid date (expected YYYY-MM-DD).",
+            }},
+            'end_date': {'error_messages': {
+                **_required_messages("End date"),
+                'invalid': "End date is not a valid date (expected YYYY-MM-DD).",
+            }},
+            'submission_deadline': {'error_messages': {
+                **_required_messages("Submission deadline"),
+                'invalid': "Submission deadline is not a valid date.",
+            }},
+            'min_team_size': {'error_messages': {
+                'invalid': "Minimum team size must be a whole number.",
+                'min_value': "Minimum team size must be at least {min_value}.",
+                'max_value': "Minimum team size cannot be more than {max_value}.",
+            }},
+            'max_team_size': {'error_messages': {
+                'invalid': "Maximum team size must be a whole number.",
+                'min_value': "Maximum team size must be at least {min_value}.",
+                'max_value': "Maximum team size cannot be more than {max_value}.",
+            }},
+            'grand_prize': {'error_messages': {
+                'invalid': "Total prize pool must be a whole number.",
+                'max_value': "Total prize pool is too large.",
+            }},
         }
+
+    def validate_title(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Hackathon name cannot be empty.")
+        return value
+
+    def validate_venue(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Venue / location cannot be empty.")
+        return value
+
+    def validate_grand_prize(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Total prize pool cannot be negative.")
+        return value
 
     def validate(self, data):
         request = self.context.get('request')
@@ -442,24 +518,39 @@ class CreateHackathonSerializer(HackathonSerializer):
 
         # Validate that the provided organization belongs to the user and is approved
         organization_id = data.get('organization_id')
-        if not organization_id:
-            raise serializers.ValidationError({"organization_id": "organization_id is required."})
-
         from organization.models import Organization
-        org = Organization.objects.filter(id=organization_id).first()
+        org = Organization.objects.filter(id=organization_id).first() if organization_id else None
         if not org:
-            raise serializers.ValidationError({"organization": f"Organization with ID {organization_id} does not exist."})
-        elif org.organizer != user:
-            raise serializers.ValidationError({"organization": f"Organization '{org.name}' does not belong to your account."})
-        elif not org.is_approved:
-            raise serializers.ValidationError({"organization": f"Organization '{org.name}' is pending administrator approval. Hackathons can only be created once the organization is approved."})
+            raise serializers.ValidationError({"organization_id": "No organization selected, or it no longer exists. Please select an organization from your dashboard and try again."})
+        if org.organizer != user:
+            raise serializers.ValidationError({"organization_id": f"Organization '{org.name}' does not belong to your account."})
+        if not org.is_approved:
+            raise serializers.ValidationError({"organization_id": f"Organization '{org.name}' is pending administrator approval. Hackathons can only be created once the organization is approved."})
 
-        if data.get('start_date') and data.get('end_date') and data['start_date'] > data['end_date']:
-            raise serializers.ValidationError("Start date must be before end date.")
-        if data.get('end_date') and data.get('submission_deadline') and data['submission_deadline'].date() > data['end_date']:
-            raise serializers.ValidationError("Submission deadline must be before or on the end date.")
-        if data.get('min_team_size') and data.get('max_team_size') and data['min_team_size'] > data['max_team_size']:
-            raise serializers.ValidationError("Minimum team size cannot exceed maximum team size.")
+        # Collect all cross-field problems at once so the user can fix them in one pass.
+        errors = {}
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        deadline = data.get('submission_deadline')
+
+        if start_date and start_date < timezone.localdate():
+            errors['start_date'] = "Start date cannot be in the past."
+        if start_date and end_date and start_date > end_date:
+            errors['end_date'] = "End date must be on or after the start date."
+        if deadline:
+            deadline_date = timezone.localtime(deadline).date() if timezone.is_aware(deadline) else deadline.date()
+            if end_date and deadline_date > end_date:
+                errors['submission_deadline'] = "Submission deadline must be on or before the end date."
+            elif start_date and deadline_date < start_date:
+                errors['submission_deadline'] = "Submission deadline must be on or after the start date."
+
+        min_size = data.get('min_team_size')
+        max_size = data.get('max_team_size')
+        if min_size and max_size and min_size > max_size:
+            errors['max_team_size'] = "Maximum team size must be greater than or equal to the minimum team size."
+
+        if errors:
+            raise serializers.ValidationError(errors)
         return data
 
     def create(self, validated_data):
@@ -483,9 +574,6 @@ class CreateHackathonSerializer(HackathonSerializer):
             hackathon.skills.set(skills)
         hackathon.themes.set(themes)
         return hackathon
-
-    def get_skills(self, obj):
-        return [skill.name for skill in obj.skills.all()]
 
 
 class UpdateHackathonSerializer(HackathonSerializer):
