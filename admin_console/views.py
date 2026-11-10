@@ -1,3 +1,4 @@
+import logging
 import pyotp
 import qrcode
 import io
@@ -7,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, throttle_classes, action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from django.core.cache import cache
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.db import models
@@ -51,6 +53,26 @@ def generate_2fa_qr(request):
     buf.seek(0)
     return HttpResponse(buf, content_type="image/png")
 
+
+
+logger = logging.getLogger(__name__)
+
+
+def clear_public_page_cache():
+    """Drop cached public pages so an admin action shows up immediately.
+
+    The public hackathon endpoints are wrapped in ``cache_page(5 minutes)``, so a
+    hackathon that an admin just suspended would otherwise stay listed for up to
+    five minutes. Only ``cache_page`` entries are removed: the same cache also holds
+    one-time passcodes and throttle counters, so it must never be cleared wholesale.
+    A cache problem must never make the admin action itself fail.
+    """
+    try:
+        delete_pattern = getattr(cache, 'delete_pattern', None)
+        if delete_pattern:
+            delete_pattern('*cache_page*')
+    except Exception:
+        logger.warning('Could not clear cached public pages', exc_info=True)
 
 
 class AuditMixin:
@@ -174,55 +196,69 @@ class HackathonViewSet(AuditMixin, viewsets.ModelViewSet):
         start_date = self.request.query_params.get("start_date")
         end_date = self.request.query_params.get("end_date")
 
-        if status_filter:
-            queryset = queryset.filter(status=status_filter)
+        # Hackathon has no `status` column; lifecycle is derived from its dates.
+        today = timezone.now().date()
+        if status_filter == 'upcoming':
+            queryset = queryset.filter(start_date__gt=today)
+        elif status_filter == 'ongoing':
+            queryset = queryset.filter(start_date__lte=today, end_date__gte=today)
+        elif status_filter == 'completed':
+            queryset = queryset.filter(end_date__lt=today)
         if start_date:
             queryset = queryset.filter(start_date__gte=start_date)
         if end_date:
             queryset = queryset.filter(end_date__lte=end_date)
 
+        # Public exposure is the single `visibility` field. `is_approved` /
+        # `is_suspended` are accepted as aliases for it.
+        visibility = self.request.query_params.get('visibility')
         is_approved = self.request.query_params.get('is_approved')
         is_suspended = self.request.query_params.get('is_suspended')
+        if visibility is not None:
+            queryset = queryset.filter(visibility=visibility.lower() == 'true')
         if is_approved is not None:
-            queryset = queryset.filter(is_approved=is_approved.lower() == 'true')
+            queryset = queryset.filter(visibility=is_approved.lower() == 'true')
         if is_suspended is not None:
-            queryset = queryset.filter(is_suspended=is_suspended.lower() == 'true')
+            queryset = queryset.filter(visibility=is_suspended.lower() != 'true')
 
         return queryset.order_by("-start_date")
+
+    # The Hackathon model has a single switch for public exposure: `visibility`.
+    # The public listing only returns hackathons with visibility=True, so these
+    # actions drive that field. (They previously assigned `is_approved` /
+    # `is_suspended`, which are not model fields, so nothing was ever saved.)
+    def _set_visibility(self, hackathon, visible):
+        hackathon.visibility = visible
+        hackathon.save(update_fields=['visibility', 'updated_at'])
+        clear_public_page_cache()
 
     @action(detail=True, methods=['patch'])
     def approve(self, request, pk=None):
         hackathon = self.get_object()
-        hackathon.is_approved = True
-        hackathon.is_suspended = False
-        hackathon.save()
+        self._set_visibility(hackathon, True)
         self.log_action('APPROVE_HACKATHON', target_id=pk)
-        return Response({'message': 'Hackathon approved'})
+        return Response({'message': 'Hackathon approved', 'visibility': hackathon.visibility})
 
     @action(detail=True, methods=['patch'])
     def reject(self, request, pk=None):
         hackathon = self.get_object()
-        hackathon.is_approved = False
-        hackathon.is_suspended = True
-        hackathon.save()
+        self._set_visibility(hackathon, False)
         self.log_action('REJECT_HACKATHON', target_id=pk)
-        return Response({'message': 'Hackathon rejected'})
+        return Response({'message': 'Hackathon rejected', 'visibility': hackathon.visibility})
 
     @action(detail=True, methods=['patch'])
     def suspend(self, request, pk=None):
         hackathon = self.get_object()
-        hackathon.is_suspended = True
-        hackathon.save()
+        self._set_visibility(hackathon, False)
         self.log_action('SUSPEND_HACKATHON', target_id=pk)
-        return Response({'message': 'Hackathon suspended'})
+        return Response({'message': 'Hackathon suspended', 'visibility': hackathon.visibility})
 
     @action(detail=True, methods=['patch'])
     def restore(self, request, pk=None):
         hackathon = self.get_object()
-        hackathon.is_suspended = False
-        hackathon.save()
+        self._set_visibility(hackathon, True)
         self.log_action('RESTORE_HACKATHON', target_id=pk)
-        return Response({'message': 'Hackathon restored'})
+        return Response({'message': 'Hackathon restored', 'visibility': hackathon.visibility})
 
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
@@ -290,7 +326,7 @@ class SubmissionViewSet(AuditMixin, viewsets.ModelViewSet):
         if hackathon_id:
             queryset = queryset.filter(hackathon_id=hackathon_id)
         if user_id:
-            queryset = queryset.filter(user_id=user_id)
+            queryset = queryset.filter(team__members__id=user_id).distinct()
 
         return queryset
 
@@ -364,8 +400,8 @@ class OrganizationViewSet(AuditMixin, viewsets.ModelViewSet):
                 type=openapi.TYPE_STRING
             ),
             openapi.Parameter(
-                'is_active', openapi.IN_QUERY,
-                description="Filter by active status (true/false)",
+                'is_approved', openapi.IN_QUERY,
+                description="Filter by approval status (true/false)",
                 type=openapi.TYPE_BOOLEAN
             ),
         ],
@@ -380,53 +416,73 @@ class OrganizationViewSet(AuditMixin, viewsets.ModelViewSet):
 
         queryset = Organization.objects.all()
         name = self.request.query_params.get('name')
-        is_active = self.request.query_params.get('is_active')
 
         if name:
             queryset = queryset.filter(name__icontains=name)
-        if is_active is not None:
-            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        # Organization has no `is_active` / `is_suspended`; `is_approved` is its only state.
         is_approved = self.request.query_params.get('is_approved')
-        is_suspended = self.request.query_params.get('is_suspended')
         if is_approved is not None:
             queryset = queryset.filter(is_approved=is_approved.lower() == 'true')
-        if is_suspended is not None:
-            queryset = queryset.filter(is_suspended=is_suspended.lower() == 'true')
 
         return queryset
+
+    # Organization has no suspension field; `is_approved` is its only state.
+    # Approving must also grant the organizer role, exactly like the platform's
+    # own ApproveOrganizationView: hackathon creation checks `user.is_organizer`,
+    # so approving an org without it left its organizer unable to host.
+    def _set_approved(self, organization, approved):
+        # Organization.save() runs full_clean(), so an org with any unrelated invalid
+        # field (e.g. no organizer after the organizer's account was deleted) could
+        # not be approved or rejected at all. Toggle only the flag.
+        Organization.objects.filter(pk=organization.pk).update(is_approved=approved, updated_at=timezone.now())
+        organization.is_approved = approved
+
+    def _approve(self, organization):
+        self._set_approved(organization, True)
+        organizer = organization.organizer
+        if organizer:
+            if not organizer.is_organizer:
+                organizer.is_organizer = True
+                organizer.save(update_fields=['is_organizer'])
+            from django.core.mail import send_mail
+            send_mail(
+                subject='Organization Approved',
+                message=f'Your organization "{organization.name}" has been approved.',
+                from_email='noreply@hackathon.com',
+                recipient_list=[organizer.email],
+                fail_silently=True,
+            )
+
+    def _unapprove(self, organization):
+        self._set_approved(organization, False)
 
     @action(detail=True, methods=['patch'])
     def approve(self, request, pk=None):
         organization = self.get_object()
-        organization.is_approved = True
-        organization.is_suspended = False
-        organization.save()
+        self._approve(organization)
         self.log_action('APPROVE_ORGANIZATION', target_id=pk)
-        return Response({'message': 'Organization approved'})
+        return Response({'message': 'Organization approved', 'is_approved': organization.is_approved})
 
     @action(detail=True, methods=['patch'])
     def reject(self, request, pk=None):
         organization = self.get_object()
-        organization.is_approved = False
-        organization.save()
+        self._unapprove(organization)
         self.log_action('REJECT_ORGANIZATION', target_id=pk)
-        return Response({'message': 'Organization rejected'})
+        return Response({'message': 'Organization rejected', 'is_approved': organization.is_approved})
 
     @action(detail=True, methods=['patch'])
     def suspend(self, request, pk=None):
         organization = self.get_object()
-        organization.is_suspended = True
-        organization.save()
+        self._unapprove(organization)
         self.log_action('SUSPEND_ORGANIZATION', target_id=pk)
-        return Response({'message': 'Organization suspended'})
+        return Response({'message': 'Organization suspended', 'is_approved': organization.is_approved})
 
     @action(detail=True, methods=['patch'])
     def restore(self, request, pk=None):
         organization = self.get_object()
-        organization.is_suspended = False
-        organization.save()
+        self._approve(organization)
         self.log_action('RESTORE_ORGANIZATION', target_id=pk)
-        return Response({'message': 'Organization restored'})
+        return Response({'message': 'Organization restored', 'is_approved': organization.is_approved})
 
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
@@ -575,11 +631,6 @@ class PlatformSettingViewSet(viewsets.ModelViewSet):
                 description="Search settings by key name",
                 type=openapi.TYPE_STRING
             ),
-            openapi.Parameter(
-                'is_active', openapi.IN_QUERY,
-                description="Filter by active status (true/false)",
-                type=openapi.TYPE_BOOLEAN
-            ),
         ],
         tags=["Platform Settings"]
     )
@@ -592,12 +643,9 @@ class PlatformSettingViewSet(viewsets.ModelViewSet):
 
         queryset = PlatformSetting.objects.all()
         key = self.request.query_params.get('key')
-        is_active = self.request.query_params.get('is_active')
 
         if key:
             queryset = queryset.filter(key__icontains=key)
-        if is_active is not None:
-            queryset = queryset.filter(is_active=is_active.lower() == 'true')
 
         return queryset
 
