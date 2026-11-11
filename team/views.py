@@ -7,7 +7,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import GenericAPIView
 from django.core.mail import send_mail
 from django.conf import settings
-from notifications.services import NotificationService
+from notifications.services import NotificationService, NotificationTemplates
 from .serializers import CreateTeamSerializer, TeamSerializer, UpdateTeamSerializer, AddMemberSerializer, RemoveMemberSerializer, LeaveTeamSerializer, AcceptTeamInvitationSerializer, TeamInvitationSerializer, TeamJoinRequestSerializer
 from admin_console.models import Team
 from drf_yasg.utils import swagger_auto_schema
@@ -146,7 +146,7 @@ class TeamViewSet(ModelViewSet):
             )
 
             # create in‑app/email notifications via NotificationService
-            NotificationService.team_member_left(team=team, departed_user=departed)
+            NotificationTemplates.team_member_left(team=team, departed_user=departed)
         
         return Response(
             {'message': f'You have successfully left the team "{team.name}".'},

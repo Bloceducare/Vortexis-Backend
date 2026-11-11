@@ -15,11 +15,13 @@ class TeamNotificationsTest(TestCase):
         # create two users: organizer and member
         self.organizer = User.objects.create_user(
             username='organizer',
+            first_name='Org',
             email='org@example.com',
             password='password123'
         )
         self.member = User.objects.create_user(
             username='member',
+            first_name='Member',
             email='member@example.com',
             password='password123'
         )
