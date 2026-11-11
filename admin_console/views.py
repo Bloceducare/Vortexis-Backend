@@ -9,6 +9,7 @@ from rest_framework.decorators import api_view, permission_classes, throttle_cla
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from django.core.cache import cache
+from django.db import connections, router
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.db import models
@@ -66,11 +67,30 @@ def clear_public_page_cache():
     five minutes. Only ``cache_page`` entries are removed: the same cache also holds
     one-time passcodes and throttle counters, so it must never be cleared wholesale.
     A cache problem must never make the admin action itself fail.
+
+    Supports the two backends this project has used: django-redis (pattern delete)
+    and Django's database cache (delete the matching rows). On any other backend
+    there is no safe way to remove only those entries, so it logs and does nothing.
     """
     try:
-        delete_pattern = getattr(cache, 'delete_pattern', None)
+        delete_pattern = getattr(cache, 'delete_pattern', None)  # django-redis
         if delete_pattern:
             delete_pattern('*cache_page*')
+            return
+
+        model = getattr(cache, 'cache_model_class', None)  # django.core.cache.backends.db
+        if model is not None:
+            # The cache model is a plain class without an ORM manager, so use SQL.
+            conn = connections[router.db_for_write(model)]
+            table = conn.ops.quote_name(model._meta.db_table)
+            with conn.cursor() as cursor:
+                cursor.execute(f'DELETE FROM {table} WHERE cache_key LIKE %s', ['%cache_page%'])
+            return
+
+        logger.warning(
+            'Cannot clear cached public pages on cache backend %s; admin changes may take up to '
+            'five minutes to appear on public pages.', type(cache).__name__,
+        )
     except Exception:
         logger.warning('Could not clear cached public pages', exc_info=True)
 
