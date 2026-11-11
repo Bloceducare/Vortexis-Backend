@@ -1,9 +1,10 @@
 import datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from io import StringIO
 
 from django.core import mail
+from django.core.cache import cache
 from django.core.management import call_command
 from django.utils import timezone
 from rest_framework import status
@@ -103,6 +104,25 @@ class HackathonActionTests(ConsoleBase):
         h.refresh_from_db()
         self.assertTrue(h.visibility)
         self.assertIn(h.id, self.public_ids())
+
+    def test_clearing_the_page_cache_leaves_other_cache_entries_alone(self):
+        """The cache also holds OTPs and throttle counters; only cached pages may be removed."""
+        cache.set('otp:test-user', '123456', 300)
+        h = self.make_hackathon(visibility=True)
+        self.public_ids()  # populate the cached public list
+        self.client.patch(f'{CONSOLE}/hackathons/{h.id}/suspend/')
+        self.assertEqual(cache.get('otp:test-user'), '123456')
+        self.assertNotIn(h.id, self.public_ids())
+
+    def test_a_cache_failure_does_not_fail_the_action(self):
+        h = self.make_hackathon(visibility=False)
+        broken_cache = MagicMock()
+        broken_cache.delete_pattern.side_effect = RuntimeError('cache is down')
+        with patch('admin_console.views.cache', broken_cache):
+            r = self.client.patch(f'{CONSOLE}/hackathons/{h.id}/approve/')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        h.refresh_from_db()
+        self.assertTrue(h.visibility)
 
     def test_reject_hides_it(self):
         h = self.make_hackathon(visibility=True)
